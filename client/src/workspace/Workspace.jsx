@@ -17,18 +17,19 @@ import ResultsPage from "./ResultsPage.jsx";
 import "./workspace.css";
 import "./pages.css";
 import "./quiz.css";
+import "./colors.css";
 
 const navigation = [
   ["home", "Tổng quan", "grid"],
   ["documents", "Tài liệu cá nhân", "file"],
-  ["contents", "Học liệu AI", "spark"],
+  ["contents", "Học liệu", "spark"],
   ["classes", "Lớp học", "users"],
   ["assignments", "Bài Quiz được giao", "quiz"],
   ["results", "Kết quả học tập", "chart"],
 ];
 
 function Shell({ route, previewRole, onLogout }) {
-  const { data, setData, user, isTeacher, href, navigate, notify, confirm } =
+  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments } =
     useWorkspace();
   const [pending, setPending] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -62,7 +63,7 @@ function Shell({ route, previewRole, onLogout }) {
     }
   }
   const searchItems = [
-    ...data.documents.map((item) => ({
+    ...accessibleDocuments.map((item) => ({
       title: item.name,
       route: `documents/${item.id}`,
       icon: "file",
@@ -208,9 +209,9 @@ function Shell({ route, previewRole, onLogout }) {
               <Icon name="bell" />
               {unread > 0 && <i />}
             </a>
-            <span className="ws-top-avatar">
+            <a className="ws-top-avatar" href={href("profile")} aria-label="Mở hồ sơ cá nhân" title="Hồ sơ cá nhân">
               {user.fullName.split(" ").at(-1).slice(0, 1)}
-            </span>
+            </a>
           </div>
         </header>
         <div className="ws-preview-strip">
@@ -238,7 +239,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData(initialData());
+                    setData(initialData(user));
                     navigate("home");
                   },
                 })

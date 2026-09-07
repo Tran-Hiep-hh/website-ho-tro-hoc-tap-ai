@@ -1,0 +1,34 @@
+.ws-app {
+  --ws-muted: #5f706b;
+  background: linear-gradient(135deg, #f1f8f5, #f5f4fb 65%, #fff8ef);
+}
+.ws-topbar { background: linear-gradient(100deg, #fff, #edf6fb); }
+.ws-top-avatar {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #286c68, #5267a5);
+  color: white;
+  text-decoration: none;
+  box-shadow: 0 3px 10px #326a6826;
+}
+.ws-top-avatar:hover { box-shadow: 0 0 0 4px #dcece9; }
+.ws-top-avatar:focus-visible { outline: 3px solid #7353aa; outline-offset: 3px; }
+.ws-sidebar nav a.active { background: #deeee8; color: #205e4a; }
+.ws-sidebar nav a:nth-child(2) > svg { color: #33759f; }
+.ws-sidebar nav a:nth-child(3) > svg { color: #8053aa; }
+.ws-sidebar nav a:nth-child(4) > svg { color: #a86826; }
+.ws-sidebar nav a:nth-child(5) > svg { color: #386da1; }
+.ws-sidebar nav a:nth-child(6) > svg { color: #976040; }
+.ws-hero { background: linear-gradient(115deg, #245d51, #345c82); }
+.ws-hero p { color: #e0eceb; }
+.ws-stat { border-top: 3px solid #459885; background: #f0faf6; }
+.ws-stat:nth-child(4n + 2) { border-top-color: #9670c1; background: #f7f1fc; }
+.ws-stat:nth-child(4n + 3) { border-top-color: #d3974e; background: #fff7eb; }
+.ws-stat:nth-child(4n + 4) { border-top-color: #598fbe; background: #eff6fd; }
+.ws-stat .ws-muted, .ws-stat small { color: #52665f; }
+.ws-learning-art.quiz { background: linear-gradient(125deg, #d7eee1, #edf7db); color: #326b4c; }
+.ws-learning-art.flashcard { background: linear-gradient(125deg, #f9e4c9, #fff0dc); color: #946024; }
+.ws-learning-art.mindmap { background: linear-gradient(125deg, #e9ddf7, #e4e8ff); color: #7650a0; }
+.ws-learning-art.document { background: linear-gradient(125deg, #dceef9, #e2f3ef); color: #326b91; }
+.ws-learning-card:hover { border-color: #a6c6c0; box-shadow: 0 6px 20px #315e5010; }
+.ws-info-banner { background: #edf5fb; border-color: #d2e4f0; }

@@ -5,7 +5,7 @@ import { Badge, Button, Empty, PageHeading } from "./ui.jsx";
 import { dateLabel, typeIcons, typeLabels } from "./data.js";
 
 export default function DashboardPage() {
-  const { data, user, isTeacher, isPreview, href, navigate } = useWorkspace();
+  const { data, user, isTeacher, isPreview, href, navigate, personalDocuments } = useWorkspace();
   const classes = data.classes.filter((item) => isTeacher || item.joined);
   const average = data.attempts.length
     ? Math.round(
@@ -17,7 +17,7 @@ export default function DashboardPage() {
     const date = new Date();
     date.setDate(date.getDate() - 6 + index);
     const count = [
-      ...data.documents.map((item) => item.date),
+      ...personalDocuments.map((item) => item.date),
       ...data.contents.map((item) => item.createdAt),
       ...data.attempts.map((item) => item.date),
     ].filter(
@@ -87,7 +87,7 @@ export default function DashboardPage() {
           [
             "file",
             "Tài liệu cá nhân",
-            data.documents.length,
+            personalDocuments.length,
             "Nguồn kiến thức của bạn",
             "green",
           ],

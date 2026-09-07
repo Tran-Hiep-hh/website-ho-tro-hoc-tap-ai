@@ -13,7 +13,7 @@ import {
 } from "./ui.jsx";
 
 export function LibraryPage() {
-  const { data, navigate, confirm, remove, notify } = useWorkspace();
+  const { data, navigate, confirm, remove, notify, classDocuments, sharedClasses } = useWorkspace();
   const [type, setType] = useState("ALL");
   const [query, setQuery] = useState("");
   const items = data.contents.filter(
@@ -46,7 +46,7 @@ export function LibraryPage() {
   return (
     <>
       <PageHeading
-        title="Học liệu AI"
+        title="Học liệu"
         description="Thư viện kiến thức của bạn, được tổ chức theo cách bạn muốn học."
         action={
           <Button icon="plus" onClick={() => navigate("generate")}>
@@ -58,6 +58,7 @@ export function LibraryPage() {
         <Tabs
           items={[
             ["ALL", "Tất cả học liệu"],
+            ["DOCUMENT", "Tài liệu lớp học"],
             ["QUIZ", "Quiz"],
             ["FLASHCARD", "Flashcard"],
             ["MINDMAP", "Mindmap"],
@@ -72,6 +73,23 @@ export function LibraryPage() {
         />
       </div>
       <div className="ws-card-grid">
+        {(type === "ALL" || type === "DOCUMENT") && classDocuments.filter((item) => item.name.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi"))).map((item) => (
+          <article className="ws-learning-card" key={item.id}>
+            <div className="ws-learning-art document">
+              <Icon name="file" size={47} />
+              <span>Tài liệu lớp học</span>
+            </div>
+            <div className="ws-class-card-body">
+              <Badge tone="blue">{item.type} · Tài liệu lớp học</Badge>
+              <h2>{item.name}</h2>
+              <p>{sharedClasses.filter((cls) => cls.materialIds.includes(item.id)).map((cls) => cls.name).join(" · ")}</p>
+              <div className="ws-card-footer">
+                <span className="ws-muted">{item.size}</span>
+                <Button variant="secondary" icon="eye" onClick={() => navigate(`documents/${item.id}`)}>Xem tài liệu</Button>
+              </div>
+            </div>
+          </article>
+        ))}
         {items.map((item) => (
           <article className="ws-learning-card" key={item.id}>
             <div className={`ws-learning-art ${item.type.toLowerCase()}`}>
@@ -124,7 +142,7 @@ export function LibraryPage() {
           </article>
         ))}
       </div>
-      {!items.length && (
+      {!items.length && !((type === "ALL" || type === "DOCUMENT") && classDocuments.some((item) => item.name.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")))) && (
         <Empty
           title="Chưa có học liệu phù hợp"
           text="Thử từ khóa khác hoặc tạo nội dung mới từ tài liệu của bạn."
@@ -140,10 +158,11 @@ export function LibraryPage() {
 }
 
 export function GeneratePage({ sourceId }) {
-  const { data, setData, navigate, notify } = useWorkspace();
+  const { accessibleDocuments, setData, navigate, notify } = useWorkspace();
   const [type, setType] = useState("QUIZ");
-  const [sources, setSources] = useState(sourceId ? [sourceId] : []);
+  const [sources, setSources] = useState(accessibleDocuments.some((item) => item.id === sourceId && item.status === "READY") ? [sourceId] : []);
   const [preview, setPreview] = useState(null);
+  const [contentRequest, setContentRequest] = useState("");
   const [error, setError] = useState("");
   function generate(event) {
     event.preventDefault();
@@ -158,6 +177,7 @@ export function GeneratePage({ sourceId }) {
       values.title.trim() || "Ôn tập cơ sở dữ liệu",
     );
     next.sources = sources;
+    next.contentRequest = contentRequest.trim();
     next.difficulty = values.difficulty;
     if (type === "QUIZ")
       next.questions = next.questions.slice(0, Number(values.quantity));
@@ -208,6 +228,14 @@ export function GeneratePage({ sourceId }) {
           </p>
         </div>
         <section className="ws-panel">
+          {preview.contentRequest && (
+            <div className="ws-info-banner">
+              <div>
+                <strong>Nội dung muốn tạo</strong>
+                <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{preview.contentRequest}</p>
+              </div>
+            </div>
+          )}
           <div className="ws-section-heading">
             <h2>{preview.title}</h2>
             <Badge>{typeLabels[preview.type]}</Badge>
@@ -291,7 +319,7 @@ export function GeneratePage({ sourceId }) {
             <small>{sources.length} đã chọn</small>
           </div>
           <div className="ws-checkbox-list">
-            {data.documents.map((item) => (
+            {accessibleDocuments.map((item) => (
               <label key={item.id}>
                 <input
                   type="checkbox"
@@ -323,6 +351,19 @@ export function GeneratePage({ sourceId }) {
               placeholder="Ví dụ: Ôn tập cơ sở dữ liệu — Chương 2"
               maxLength={150}
               required
+            />
+          </Field>
+          <Field
+            label="Nội dung muốn tạo (không bắt buộc)"
+            hint="Mô tả chủ đề cần tập trung, cách đặt câu hỏi và yêu cầu về câu trả lời. Có thể để trống."
+          >
+            <textarea
+              name="contentRequest"
+              rows={5}
+              maxLength={3000}
+              value={contentRequest}
+              onChange={(event) => setContentRequest(event.target.value)}
+              placeholder="Ví dụ: Tập trung vào khóa chính và khóa ngoại. Câu hỏi ngắn gọn, mỗi câu có 4 lựa chọn và 1 đáp án đúng. Đáp án cần giải thích lý do kèm ví dụ dễ hiểu."
             />
           </Field>
           <div className="ws-form-grid">

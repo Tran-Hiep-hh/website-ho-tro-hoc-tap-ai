@@ -1,5 +1,27 @@
 import { test, expect } from "@playwright/test";
 
+test("student documents stay personal and class files remain read-only", async ({ page }) => {
+  await page.goto("/#/preview/student/documents");
+  await expect(page.getByRole("button", { name: "Xem Ghi chú ôn tập SQL.txt", exact: true })).toBeVisible();
+  await expect(page.getByText("Cơ sở dữ liệu — Chương 2.pdf", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({ name: "ban-ca-nhan.txt", mimeType: "text/plain", buffer: Buffer.from("Ghi chú cá nhân") });
+  await page.getByRole("button", { name: "Thêm vào bản xem trước" }).click();
+  await page.getByRole("button", { name: "Xóa ban-ca-nhan.txt", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Xem ban-ca-nhan.txt", exact: true })).toHaveCount(0);
+  await page.getByRole("navigation", { name: "Điều hướng chính" }).getByRole("link", { name: "Học liệu", exact: true }).click();
+  await page.getByRole("button", { name: "Tài liệu lớp học", exact: true }).click();
+  const shared = page.locator("article").filter({ has: page.getByRole("heading", { name: "Cơ sở dữ liệu — Chương 2.pdf", exact: true }) });
+  await shared.getByRole("button", { name: "Xem tài liệu" }).click();
+  await expect(page.getByRole("button", { name: "Xóa tài liệu", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tải văn bản xem trước" })).toBeVisible();
+  await page.getByRole("link", { name: "Mở hồ sơ cá nhân", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hồ sơ cá nhân", exact: true })).toBeVisible();
+  await page.goto("/#/preview/student/documents/doc-4");
+  await expect(page.getByRole("heading", { name: "Bài giảng cấu trúc dữ liệu.pdf", exact: true })).toHaveCount(0);
+});
+
 test("real-account navigation uses the auth API contract and protects signed-out pages", async ({ page }) => {
   let signedIn = false;
   const user = { userId: "123", fullName: "Nguyễn Minh An", email: "an@example.com", role: "TEACHER" };
@@ -119,7 +141,7 @@ test("flashcards record progress, mindmap edits export a PNG and notifications u
   await page.getByRole("button", { name: "Lật thẻ ghi nhớ" }).click();
   await page.getByRole("button", { name: "Đã nhớ", exact: true }).click();
   await expect(page.getByText("1/6 thẻ đã nhớ", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Học liệu AI", exact: true }).click();
+  await page.getByRole("link", { name: "Học liệu", exact: true }).click();
   await page.locator(".ws-learning-card").filter({ has: page.getByRole("heading", { name: "Tổng quan cơ sở dữ liệu" }) }).getByRole("button", { name: "Mở học liệu" }).click();
   await page.getByRole("button", { name: "Thêm nhánh con", exact: true }).click();
   await page.getByLabel("Nội dung nút").fill("Nhánh kiến thức mới");

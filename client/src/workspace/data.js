@@ -124,7 +124,9 @@ export function sampleContent(type, title = "Cơ sở dữ liệu quan hệ") {
   };
 }
 
-export function initialData() {
+export function initialData(user = {}) {
+  const ownerId = String(user.userId ?? user.id ?? "preview-user");
+  const teacherId = user.role === "TEACHER" ? ownerId : "sample-teacher";
   const quiz = {
     ...sampleContent("QUIZ", "Ôn tập cơ sở dữ liệu — Chương 2"),
     id: "quiz-1",
@@ -144,6 +146,7 @@ export function initialData() {
     documents: [
       {
         id: "doc-1",
+        ownerId: teacherId,
         name: "Cơ sở dữ liệu — Chương 2.pdf",
         type: "PDF",
         size: "2,4 MB",
@@ -153,6 +156,7 @@ export function initialData() {
       },
       {
         id: "doc-2",
+        ownerId: teacherId,
         name: "Nhập môn công nghệ phần mềm.docx",
         type: "DOCX",
         size: "1,8 MB",
@@ -162,6 +166,7 @@ export function initialData() {
       },
       {
         id: "doc-3",
+        ownerId,
         name: "Ghi chú ôn tập SQL.txt",
         type: "TXT",
         size: "12 KB",
@@ -171,6 +176,7 @@ export function initialData() {
       },
       {
         id: "doc-4",
+        ownerId: teacherId,
         name: "Bài giảng cấu trúc dữ liệu.pdf",
         type: "PDF",
         size: "3,2 MB",

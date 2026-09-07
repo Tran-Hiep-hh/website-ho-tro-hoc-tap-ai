@@ -14,7 +14,7 @@ import {
 } from "./ui.jsx";
 
 export default function DocumentsPage({ documentId }) {
-  const { data, setData, navigate, remove, confirm, notify } = useWorkspace();
+  const { data, setData, navigate, remove, confirm, notify, ownerId, personalDocuments, accessibleDocuments } = useWorkspace();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("ALL");
   const [upload, setUpload] = useState(false);
@@ -22,8 +22,10 @@ export default function DocumentsPage({ documentId }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const fileInput = useRef(null);
-  const document = data.documents.find((item) => item.id === documentId);
+  const document = accessibleDocuments.find((item) => item.id === documentId);
+  const isOwner = document?.ownerId === ownerId;
   function deleteDocument(item) {
+    if (item.ownerId !== ownerId) return;
     if (data.classes.some((cls) => cls.materialIds.includes(item.id))) {
       notify("Hãy gỡ tài liệu khỏi lớp trước khi xóa.");
       return;
@@ -61,6 +63,7 @@ export default function DocumentsPage({ documentId }) {
       const newDocuments = await Promise.all(
         files.map(async (file) => ({
           id: id(),
+          ownerId,
           name: file.name,
           type: file.name.split(".").at(-1).toUpperCase(),
           size: `${(file.size / 1024).toFixed(1)} KB`,
@@ -90,9 +93,9 @@ export default function DocumentsPage({ documentId }) {
         <Button
           variant="ghost"
           icon="back"
-          onClick={() => navigate("documents")}
+          onClick={() => navigate(isOwner ? "documents" : "contents")}
         >
-          Tài liệu cá nhân
+          {isOwner ? "Tài liệu cá nhân" : "Học liệu lớp học"}
         </Button>
         <PageHeading
           title={document.name}
@@ -149,13 +152,13 @@ export default function DocumentsPage({ documentId }) {
                 nội dung
               </dd>
             </dl>
-            <Button
+            {isOwner && <Button
               variant="danger"
               icon="trash"
               onClick={() => deleteDocument(document)}
             >
               Xóa tài liệu
-            </Button>
+            </Button>}
           </aside>
         </div>
       </>
@@ -167,7 +170,7 @@ export default function DocumentsPage({ documentId }) {
         }
       />
     );
-  const items = data.documents.filter(
+  const items = personalDocuments.filter(
     (item) =>
       item.name
         .toLocaleLowerCase("vi")
@@ -178,7 +181,7 @@ export default function DocumentsPage({ documentId }) {
     <>
       <PageHeading
         title="Tài liệu cá nhân"
-        description="Lưu trữ nguồn kiến thức và biến tài liệu thành học liệu của riêng bạn."
+        description="Chỉ gồm tài liệu do bạn tải lên. Tài liệu giáo viên chia sẻ nằm trong Học liệu."
         action={
           <Button icon="upload" onClick={() => setUpload(true)}>
             Thêm tài liệu

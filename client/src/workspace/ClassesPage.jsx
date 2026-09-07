@@ -25,6 +25,7 @@ export default function ClassesPage({ classId }) {
     remove,
     notify,
     confirm,
+    personalDocuments,
   } = useWorkspace();
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState(null);
@@ -202,7 +203,7 @@ export default function ClassesPage({ classId }) {
           </p>
           <div className="ws-checkbox-list">
             {[
-              ...data.documents.filter((item) => item.status === "READY"),
+              ...personalDocuments.filter((item) => item.status === "READY"),
               ...data.contents.filter((item) => item.type !== "QUIZ"),
             ].map((item) => (
               <label key={item.id}>

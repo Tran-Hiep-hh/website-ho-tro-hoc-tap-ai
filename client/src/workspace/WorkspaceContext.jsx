@@ -6,7 +6,12 @@ const Context = createContext(null);
 export const useWorkspace = () => useContext(Context);
 
 export function WorkspaceProvider({ user, previewRole, children }) {
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState(() => initialData(user));
+  const ownerId = String(user.userId ?? user.id ?? "preview-user");
+  const personalDocuments = data.documents.filter((item) => item.ownerId === ownerId);
+  const sharedClasses = data.classes.filter((cls) => user.role === "TEACHER" || cls.joined);
+  const classDocuments = data.documents.filter((item) => sharedClasses.some((cls) => cls.materialIds.includes(item.id)));
+  const accessibleDocuments = data.documents.filter((item) => item.ownerId === ownerId || classDocuments.includes(item));
   const [toast, setToast] = useState("");
   const [confirmation, setConfirmation] = useState(null);
   const prefix = previewRole ? `/preview/${previewRole}/` : "/";
@@ -35,6 +40,11 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     <Context.Provider
       value={{
         data,
+        ownerId,
+        personalDocuments,
+        classDocuments,
+        accessibleDocuments,
+        sharedClasses,
         setData,
         user,
         isTeacher: user.role === "TEACHER",
