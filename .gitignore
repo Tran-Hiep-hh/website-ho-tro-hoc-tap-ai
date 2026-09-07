@@ -7,3 +7,5 @@ dist/
 .vscode/
 uploads/*
 !uploads/.gitkeep
+test-results/
+playwright-report/

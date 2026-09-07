@@ -3,18 +3,22 @@ CREATE TABLE users (
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('TEACHER', 'STUDENT'))
+    role VARCHAR(20) NOT NULL CHECK (role IN ('TEACHER', 'STUDENT')),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'BLOCKED', 'INACTIVE'))
 );
 
 CREATE UNIQUE INDEX users_email_unique ON users (LOWER(email));
 
 CREATE TABLE refresh_tokens (
     refresh_token_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    session_id UUID NOT NULL DEFAULT gen_random_uuid(),
     user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     is_revoked BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+CREATE UNIQUE INDEX refresh_tokens_session_unique ON refresh_tokens (session_id);
 
 CREATE TABLE source_documents (
     document_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

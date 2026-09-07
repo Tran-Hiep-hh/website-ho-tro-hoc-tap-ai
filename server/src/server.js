@@ -1,7 +1,7 @@
-import { app } from "./app.js";
+import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 
-const server = app.listen(env.port, () => {
+const server = createApp().listen(env.port, () => {
   console.log(`API đang chạy tại http://localhost:${env.port}`);
 });
 
