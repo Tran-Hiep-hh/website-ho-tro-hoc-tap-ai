@@ -95,7 +95,39 @@ Có thể đặt `PLAYWRIGHT_CHANNEL=chrome` nếu dùng Google Chrome. Báo cá
 
 Migration `database/migrations/001_auth.sql` bổ sung trạng thái tài khoản và mã phiên cho database đã có. Lệnh migrate có thể chạy lại và không xóa dữ liệu.
 
-## Lưu ý
+## Bản xem trước giao diện máy tính
+
+Chỉ cần chạy frontend, không cần Docker, API hoặc khóa DeepSeek:
+
+```bash
+npm run dev --workspace client
+```
+
+- Giáo viên: `http://localhost:5173/#/preview/teacher/home`
+- Người học: `http://localhost:5173/#/preview/student/home`
+- Trang đăng nhập cũng có liên kết **Xem giao diện mẫu** cho hai vai trò.
+
+Các màn hình gồm Dashboard, hồ sơ/đổi mật khẩu, tài liệu cá nhân, thư viện và tạo học liệu, Quiz, ôn Flashcard, trình sửa Mindmap, lớp/thành viên/yêu cầu tham gia, chia sẻ học liệu, giao/làm Quiz, kết quả và thông báo.
+Có tìm kiếm, bộ lọc, biểu mẫu, xác nhận xóa, trạng thái trống và các thao tác thử trong trình duyệt.
+
+Dữ liệu học tập nằm trong `client/src/workspace/data.js`, trạng thái được quản lý bởi `WorkspaceContext.jsx`.
+Thay đổi chỉ giữ trong bộ nhớ của phiên xem, sẽ đặt lại khi tải lại trang hoặc chuyển vai trò. Nút **Đặt lại** khôi phục dữ liệu mẫu.
+Tệp TXT có thể được đọc tại máy; PDF/DOCX chỉ hiển thị metadata và chờ dịch vụ trích xuất. Không tệp nào được tải lên máy chủ.
+Luồng tạo AI dùng nội dung minh họa cố định về cơ sở dữ liệu và không gọi DeepSeek.
+Mindmap xuất PNG bằng canvas; **In / Lưu PDF** mở hộp thoại in của trình duyệt để người dùng lưu PDF.
+Hồ sơ được sửa trong bản mẫu; biểu mẫu mật khẩu chỉ kiểm tra dữ liệu, không thay đổi tài khoản thật.
+Đăng ký, đăng nhập, đăng xuất vẫn sử dụng API thật khi mở ngoài đường dẫn `/preview/`.
+
+Kiểm thử giao diện độc lập trên Edge:
+
+```bash
+npm run test:ui --workspace client
+```
+
+Kiểm thử dùng dữ liệu mẫu và API giả lập cho kiểm tra điều hướng xác thực; không kết nối database.
+Bộ `test:e2e` riêng vẫn kiểm thử xác thực thật và cần PostgreSQL đang chạy.
+
+## Lưu ý chung
 
 - Điền `DEEPSEEK_API_KEY` trong `server/.env` trước khi tích hợp chức năng AI.
 - Không đưa tệp `.env` hoặc API key lên Git.
