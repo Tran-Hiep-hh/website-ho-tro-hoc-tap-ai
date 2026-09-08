@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { id } from "./data.js";
 import { Button, Field } from "./ui.jsx";
+import { apiRequest } from "../lib/api.js";
 
 function layoutTree(nodes) {
   let leaf = 0;
@@ -33,6 +34,7 @@ export default function MindmapEditor({ item, onChange }) {
   const setNodes = (next) => onChange ? onChange(next) : setLocalNodes(next);
   const [selected, setSelected] = useState(item.nodes[0].id);
   const [zoom, setZoom] = useState(1);
+  const [saving, setSaving] = useState(false);
   const svgRef = useRef(null);
   const { positions, width, height } = useMemo(
     () => layoutTree(nodes),
@@ -119,9 +121,19 @@ export default function MindmapEditor({ item, onChange }) {
           </Button>
           {!onChange && <Button
             icon="check"
-            onClick={() => {
+            disabled={saving}
+            onClick={async () => {
               if (nodes.some((entry) => !entry.label.trim())) {
                 notify("Mỗi nút cần có nội dung.");
+                return;
+              }
+              if (item.persisted) {
+                setSaving(true);
+                try {
+                  const result = await apiRequest(`/study-materials/${item.id}`, { method: "PUT", body: { ...item, nodes } });
+                  update("contents", item.id, result.content); notify("Đã lưu Mindmap trên máy chủ.");
+                } catch (error) { notify(error.message); }
+                finally { setSaving(false); }
                 return;
               }
               update("contents", item.id, { nodes });
@@ -321,7 +333,7 @@ export default function MindmapEditor({ item, onChange }) {
             </>
           )}
           <small>
-            {nodes.length}/30 nút. {onChange ? "Thay đổi được giữ trong bản nháp. Nhấn Lưu vào thư viện ở phía trên khi hoàn tất." : "Nhấn Lưu Mindmap để giữ thay đổi trong phiên này."}
+            {nodes.length}/30 nút. {onChange ? "Thay đổi được giữ trong bản nháp. Nhấn Lưu vào thư viện ở phía trên khi hoàn tất." : item.persisted ? "Nhấn Lưu Mindmap để lưu thay đổi trên máy chủ." : "Nhấn Lưu Mindmap để giữ thay đổi trong phiên này."}
           </small>
         </aside>
       </div>

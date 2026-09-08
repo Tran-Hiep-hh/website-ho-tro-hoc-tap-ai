@@ -35,9 +35,11 @@ export default function ContentPage({ contentId }) {
       if (saving) return;
       setSaving(true);
       try {
-        const result = await apiRequest(`/quizzes/${item.id}`, { method: "PUT", body: draft });
+        const result = await apiRequest(`/${item.type === "QUIZ" ? "quizzes" : "study-materials"}/${item.id}`, { method: "PUT", body: draft });
         update("contents", item.id, result.content);
-        setEditing(false); notify("Đã lưu phiên bản Quiz mới. Kết quả các lượt làm cũ được giữ nguyên.");
+        if (item.type === "FLASHCARD") setData((old) => ({ ...old, learned: { ...old.learned, [item.id]: result.content.learned } }));
+        setStudying(false); setIndex(0); setComplete(false);
+        setEditing(false); notify(item.type === "QUIZ" ? "Đã lưu phiên bản Quiz mới. Kết quả các lượt làm cũ được giữ nguyên." : "Đã lưu bộ thẻ. Tiến độ của thẻ bị sửa nội dung được đặt lại.");
       } catch (error) { notify(error.message); }
       finally { setSaving(false); }
       return;
@@ -60,8 +62,18 @@ export default function ContentPage({ contentId }) {
         learned: { ...old.learned, [item.id]: [] },
       }));
     setEditing(false);
+    setStudying(false); setIndex(0); setComplete(false);
   }
-  function mark(remembered) {
+  async function mark(remembered) {
+    if (saving) return;
+    if (item.persisted) {
+      setSaving(true);
+      try {
+        const result = await apiRequest(`/study-materials/${item.id}/progress`, { method: "PUT", body: { cardId: item.cards[index].id, revision: item.revision, remembered } });
+        setData((old) => ({ ...old, learned: { ...old.learned, [item.id]: result.content.learned } }));
+      } catch (error) { notify(error.message); return; }
+      finally { setSaving(false); }
+    } else {
     setData((old) => ({
       ...old,
       learned: {
@@ -71,6 +83,7 @@ export default function ContentPage({ contentId }) {
           : (old.learned[item.id] ?? []).filter((key) => key !== index),
       },
     }));
+    }
     setFlipped(false);
     if (index === item.cards.length - 1) setComplete(true);
     else setIndex(index + 1);
@@ -335,6 +348,9 @@ export default function ContentPage({ contentId }) {
           )
         }
       />
+      {item.type !== "QUIZ" && item.generationMode === "MOCK" && (
+        <div className="ws-info-banner"><div><strong>AI giả lập · Đã lưu trên máy chủ</strong><p>Nội dung minh họa chưa được AI tạo từ tài liệu của bạn.</p>{item.contentRequest && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>Yêu cầu bổ sung: {item.contentRequest}</p>}</div></div>
+      )}
       {item.type === "QUIZ" && (
         <section className="ws-panel">
           {item.generationMode === "MOCK" && <div className="ws-info-banner"><p>AI giả lập · Quiz đã lưu trên máy chủ. Câu hỏi minh họa không được tạo từ tài liệu của bạn; có thể chỉnh sửa trước khi sử dụng.</p></div>}
@@ -415,6 +431,7 @@ export default function ContentPage({ contentId }) {
                 </div>
                 <button
                   className={`ws-flashcard ${flipped ? "flipped" : ""}`}
+                  disabled={saving}
                   onClick={() => setFlipped(!flipped)}
                   aria-label="Lật thẻ ghi nhớ"
                 >
@@ -430,10 +447,10 @@ export default function ContentPage({ contentId }) {
                   </span>
                 </button>
                 <div className="ws-study-controls">
-                  <Button variant="secondary" onClick={() => mark(false)}>
+                  <Button variant="secondary" disabled={saving} onClick={() => mark(false)}>
                     Cần ôn lại
                   </Button>
-                  <Button icon="check" onClick={() => mark(true)}>
+                  <Button icon="check" disabled={saving} onClick={() => mark(true)}>
                     Đã nhớ
                   </Button>
                 </div>
@@ -441,7 +458,7 @@ export default function ContentPage({ contentId }) {
                   <Button
                     variant="ghost"
                     icon="back"
-                    disabled={index === 0}
+                    disabled={saving || index === 0}
                     onClick={() => {
                       setIndex(index - 1);
                       setFlipped(false);
@@ -449,13 +466,13 @@ export default function ContentPage({ contentId }) {
                   >
                     Thẻ trước
                   </Button>
-                  <Button variant="ghost" onClick={() => setStudying(false)}>
+                  <Button variant="ghost" disabled={saving} onClick={() => setStudying(false)}>
                     Kết thúc ôn tập
                   </Button>
                   <Button
                     variant="ghost"
                     icon="arrow"
-                    disabled={index === item.cards.length - 1}
+                    disabled={saving || index === item.cards.length - 1}
                     onClick={() => {
                       setIndex(index + 1);
                       setFlipped(false);
@@ -483,7 +500,7 @@ export default function ContentPage({ contentId }) {
           )}
         </>
       )}
-      {item.type === "MINDMAP" && <MindmapEditor item={item} />}
+      {item.type === "MINDMAP" && <MindmapEditor key={`${item.id}:${item.revision ?? 0}`} item={item} />}
     </>
   );
 }

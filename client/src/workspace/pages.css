@@ -40,7 +40,8 @@
   font-size: 11px;
   color: #8c9c7b;
   line-height: 1.8;
-  margin-top: 5px;
+  background: #edf5fb;
+  border-color: #d2e4f0;
 }
 .ws-info-banner > svg {
   flex-shrink: 0;
@@ -844,4 +845,108 @@
     min-width: 190px;
     width: 220px;
   }
+}
+
+.ws-info-banner strong,
+.ws-table strong,
+.ws-section-heading p,
+.ws-detail-list dd {
+  font-size: 13px;
+}
+.ws-info-banner p,
+.ws-table,
+.ws-table-name,
+.ws-class-card-body > p,
+.ws-class-meta,
+.ws-selected-file,
+.ws-dropzone span,
+.ws-guidelines {
+  font-size: 12px;
+}
+.ws-table th,
+.ws-table small,
+.ws-detail-list dt,
+.ws-dropzone small,
+.ws-card-labels,
+.ws-node-editor > small {
+  font-size: 11px;
+}
+.ws-file-label {
+  font-size: 9px;
+}
+.ws-class-card-body h2 {
+  font-size: 18px;
+}
+.ws-class-cover h1 {
+  font-size: 32px;
+}
+.ws-type-picker strong,
+.ws-question-preview > strong,
+.ws-question-edit .ws-section-heading h2 {
+  font-size: 14px;
+}
+.ws-type-picker small,
+.ws-step-title small,
+.ws-generation-aside section p,
+.ws-generation-aside > small {
+  font-size: 11px;
+}
+
+.ws-toolbar .ws-tabs button,
+.ws-toolbar .ws-search input,
+.ws-filter-panel .ws-field,
+.ws-filter-panel .ws-field input,
+.ws-filter-panel .ws-field select,
+.ws-student-filter {
+  font-size: 14px;
+}
+.ws-table td {
+  font-size: 13px;
+  color: #5f7369;
+}
+.ws-table th {
+  font-size: 12px;
+  color: #6e8278;
+}
+.ws-table strong {
+  font-size: 14px;
+  color: #285f61;
+}
+.ws-table small {
+  font-size: 12px;
+}
+.ws-resource-row strong {
+  font-size: 13px;
+}
+.ws-resource-row small {
+  font-size: 12px;
+}
+.ws-result-summary h2 {
+  font-size: 25px;
+}
+.ws-result-summary p,
+.ws-wrong-question p {
+  font-size: 14px;
+}
+.ws-distribution > div > span,
+.ws-distribution strong {
+  font-size: 13px;
+}
+.ws-form .ws-field,
+.ws-form .ws-field input,
+.ws-form .ws-field select,
+.ws-form .ws-check-line {
+  font-size: 14px;
+}
+.ws-form .ws-field small {
+  font-size: 12px;
+}
+.ws-detail-list dt {
+  font-size: 12px;
+}
+.ws-detail-list dd {
+  font-size: 14px;
+}
+.ws-guidelines {
+  font-size: 14px;
 }

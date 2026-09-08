@@ -279,3 +279,28 @@
   max-width: 220px;
   font-size: 11px;
 }
+
+.ws-quiz-intro-stats > span,
+.ws-quiz-intro > p,
+.ws-result-summary p,
+.ws-filter-panel > span,
+.ws-wrong-question p {
+  font-size: 13px;
+}
+.ws-answer-options > label,
+.ws-question-numbers button,
+.ws-student-filter {
+  font-size: 13px;
+}
+.ws-quiz-question h2 {
+  font-size: 22px;
+}
+.ws-quiz-legend,
+.ws-score-ring > span > small {
+  font-size: 10px;
+}
+.ws-distribution > div > span,
+.ws-distribution strong,
+.ws-wrong-question > span:first-child {
+  font-size: 12px;
+}

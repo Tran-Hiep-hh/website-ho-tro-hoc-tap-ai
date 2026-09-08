@@ -44,7 +44,7 @@ export function LibraryPage() {
       label: "Xóa học liệu",
       action: async () => {
         if (item.persisted) {
-          try { await apiRequest(`/quizzes/${item.id}`, { method: "DELETE", body: {} }); }
+          try { await apiRequest(`/${item.type === "QUIZ" ? "quizzes" : "study-materials"}/${item.id}`, { method: "DELETE", body: {} }); }
           catch (error) { notify(error.message); return; }
         }
         remove("contents", item.id);
@@ -186,10 +186,10 @@ export function GeneratePage({ sourceId }) {
     const values = Object.fromEntries(new FormData(event.currentTarget));
     setFormValues(values);
     setEditingPreview(false);
-    if (!isPreview && type === "QUIZ") {
+    if (!isPreview) {
       setBusy(true);
       try {
-        const result = await apiRequest("/quizzes/generate", { method: "POST", body: { title: values.title.trim(), difficulty: values.difficulty, sources, contentRequest, quantity: Number(values.quantity) } });
+        const result = await apiRequest(`/${type === "QUIZ" ? "quizzes" : "study-materials"}/generate`, { method: "POST", body: { type, title: values.title.trim(), difficulty: values.difficulty, sources, contentRequest, quantity: Number(values.quantity ?? 6), detail: values.detail ?? "detailed" } });
         setPreview(result.content);
       } catch (error) { setError(error.message); }
       finally { setBusy(false); }
@@ -222,10 +222,10 @@ export function GeneratePage({ sourceId }) {
     }
     setBusy(true); setError("");
     try {
-      const saved = !isPreview && preview.type === "QUIZ"
-        ? (await apiRequest("/quizzes", { method: "POST", body: preview })).content : preview;
+      const saved = !isPreview
+        ? (await apiRequest(`/${preview.type === "QUIZ" ? "quizzes" : "study-materials"}`, { method: "POST", body: preview })).content : preview;
       setData((old) => ({ ...old, contents: [...old.contents, saved] }));
-      notify(saved.persisted ? "Đã lưu Quiz vào database." : "Đã lưu học liệu mẫu trong phiên xem.");
+      notify(saved.persisted ? "Đã lưu học liệu vào database." : "Đã lưu học liệu mẫu trong phiên xem.");
       navigate(`content/${saved.id}`);
     } catch (error) { setError(error.message); }
     finally { setBusy(false); }
@@ -261,7 +261,7 @@ export function GeneratePage({ sourceId }) {
         <div className="ws-info-banner">
           <Icon name="spark" />
           <p>
-            {preview.type === "QUIZ" ? "AI giả lập: câu hỏi minh họa cố định về cơ sở dữ liệu, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. Quiz luôn có 4 lựa chọn và 1 đáp án đúng. Khi lưu Quiz bằng tài khoản thật, nội dung được lưu vào database." : "Nội dung minh họa cố định, chưa phân tích tài liệu bằng AI. Flashcard và Mindmap hiện chỉ lưu trong phiên xem; tải lại trang sẽ đặt lại dữ liệu mẫu."}
+            {preview.type === "QUIZ" ? "AI giả lập: câu hỏi minh họa cố định về cơ sở dữ liệu, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. Quiz luôn có 4 lựa chọn và 1 đáp án đúng. Khi lưu Quiz bằng tài khoản thật, nội dung được lưu vào database." : `AI giả lập: nội dung minh họa cố định, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. ${isPreview ? "Bản xem trước chỉ lưu trong phiên xem." : "Flashcard, Mindmap và tiến độ được lưu trên máy chủ."}`}
           </p>
         </div>
         {error && <p className="ws-inline-error" role="alert">{error}</p>}
@@ -448,7 +448,7 @@ export function GeneratePage({ sourceId }) {
                   type="number"
                   name="quantity"
                   min={1}
-                  max={type === "QUIZ" ? (isPreview ? 5 : 20) : 6}
+                  max={isPreview ? (type === "QUIZ" ? 5 : 6) : 20}
                   defaultValue={formValues.quantity ?? (type === "QUIZ" ? 5 : 6)}
                   required
                 />
@@ -461,7 +461,7 @@ export function GeneratePage({ sourceId }) {
             </p>
           )}
           <div className="ws-form-footer">
-            <span>AI giả lập dùng 5 câu hỏi minh họa; số lượng lớn hơn sẽ lặp lại. Không cần API key.</span>
+            <span>{type === "QUIZ" ? "AI giả lập dùng 5 câu hỏi minh họa; số lượng lớn hơn sẽ lặp lại." : type === "FLASHCARD" ? "AI giả lập dùng 6 thẻ minh họa; số lượng lớn hơn sẽ lặp lại." : "AI giả lập dùng sơ đồ minh họa về cơ sở dữ liệu."} Không cần API key.</span>
             <Button type="submit" icon="spark" disabled={busy}>
               {busy ? "Đang tạo…" : "Xem kết quả mẫu"}
             </Button>

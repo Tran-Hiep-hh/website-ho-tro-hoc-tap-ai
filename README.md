@@ -103,7 +103,7 @@ Với database đã có, chạy `npm run migrate --workspace server` trước kh
 
 Tệp gốc lưu ở `uploads/` tại thư mục gốc dự án (hoặc `UPLOAD_DIR`), tên lưu trữ ngẫu nhiên và không được phục vụ công khai. Cần sao lưu cả thư mục này và PostgreSQL. API `/api/documents` yêu cầu đăng nhập; danh sách, chi tiết, tải xuống và xóa đều kiểm tra người sở hữu. Xóa đánh dấu bản ghi `DELETED`, gỡ tệp gốc và giữ tham chiếu cho học liệu đã tạo. Tài liệu đang chia sẻ trong lớp phải gỡ liên kết trước khi xóa.
 
-Các phần tạo AI, lớp học và kết quả vẫn là giao diện mẫu. Nút đặt lại dữ liệu mẫu không xóa tài liệu thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
+Nội dung tạo AI vẫn là giả lập; lớp học vẫn là giao diện mẫu. Tài liệu, học liệu và kết quả cá nhân đã lưu thật. Nút đặt lại dữ liệu mẫu không xóa tài liệu, học liệu hoặc tiến độ thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
 
 ## Quiz cá nhân với AI giả lập
 
@@ -113,9 +113,19 @@ Chế độ hiện tại luôn là **MOCK**, dùng 5 câu hỏi minh họa về 
 
 API `/api/quizzes` yêu cầu đăng nhập và kiểm tra quyền sở hữu tài liệu nguồn/Quiz/lượt làm. Máy chủ chấm điểm từ đáp án của phiên bản đã bắt đầu; không nhận điểm do client tự tính. Điểm lưu theo tỷ lệ 0–100 để tương thích cấu trúc cũ, giao diện đổi sang thang 10 (60 → 6/10). Chỉnh sửa tạo phiên bản mới, giữ nguyên câu hỏi và kết quả của lượt làm cũ. Gửi lại yêu cầu nộp cùng lượt không tạo điểm hoặc câu trả lời trùng. Lựa chọn chưa nộp chỉ nằm trong trang hiện tại; tải lại trang cần chọn lại.
 
-Chạy `npm run migrate --workspace server` cho database đã có. Migration `003_quizzes.sql` bổ sung cấu hình tạo, ngày tạo, tiêu đề phiên bản và nhãn nguồn câu hỏi; giữ nguyên dữ liệu cũ. Xóa Quiz khỏi thư viện vẫn giữ lịch sử làm bài. Flashcard, Mindmap và giao bài trong lớp hiện vẫn là giao diện mẫu.
+Chạy `npm run migrate --workspace server` cho database đã có. Migration `003_quizzes.sql` bổ sung cấu hình tạo, ngày tạo, tiêu đề phiên bản và nhãn nguồn câu hỏi; giữ nguyên dữ liệu cũ. Xóa Quiz khỏi thư viện vẫn giữ lịch sử làm bài. Giao bài trong lớp hiện vẫn là giao diện mẫu.
 
 Kiểm thử: `npm run test --workspace server` kiểm tra quyền sở hữu, phiên bản, chấm điểm và yêu cầu đồng thời; `npm run test:e2e --workspace client` kiểm tra luồng Quiz trên trình duyệt với PostgreSQL thật trong schema riêng.
+
+## Flashcard và Mindmap lưu thật
+
+Đăng nhập thật → chọn tài liệu sẵn sàng → **Tạo học liệu** → chọn Flashcard hoặc Mindmap → xem kết quả giả lập → chỉnh sửa trước khi lưu → **Lưu vào thư viện**. Hai loại học liệu dùng API `/api/study-materials`, được lưu trong các bảng `generated_contents`, `content_sources`, `flashcards` và `mindmap_nodes`. Người dùng chỉ được tạo từ tài liệu của mình và xem/sửa/xóa học liệu do mình sở hữu. Học liệu đang chia sẻ phải gỡ khỏi lớp trước khi xóa.
+
+Migration `004_study_materials.sql` bổ sung `generated_contents.revision`, `flashcards.keyword` và bảng `flashcard_progress`. Lệnh migrate có thể chạy lại, không xóa dữ liệu cũ. Số phiên bản giúp chặn lưu đè từ trang đã cũ; khi gặp thông báo xung đột, tải lại trang rồi chỉnh sửa tiếp.
+
+Flashcard lưu trạng thái **Đã nhớ / Cần ôn lại** theo từng thẻ. Sửa mặt trước hoặc mặt sau của thẻ đặt lại tiến độ của riêng thẻ đó; đổi tên bộ thẻ, từ khóa hoặc thứ tự không làm mất tiến độ của thẻ không đổi. Khi xóa thẻ, tiến độ liên quan được xóa theo. Mindmap lưu đầy đủ nút và nút cha; kiểm tra một nút gốc, không vòng lặp, không nhánh mồ côi, tối đa 30 nút. Nhấn **Lưu Mindmap** sau chỉnh sửa; có thể xuất PNG hoặc in/lưu PDF.
+
+Chế độ tạo nội dung vẫn là **MOCK**, không gọi DeepSeek hoặc phân tích tài liệu/yêu cầu bổ sung. Flashcard dùng 6 thẻ minh họa (chọn 1–20; trên 6 sẽ lặp lại), Mindmap dùng cây mẫu tổng quan hoặc chi tiết. Tất cả nội dung đã lưu và tiến độ đều còn sau khi tải lại trang. Đường dẫn `/preview/` vẫn dùng dữ liệu trong bộ nhớ và không gọi API.
 
 ## Bản xem trước giao diện máy tính
 

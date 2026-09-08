@@ -1,0 +1,80 @@
+import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+
+async function setup(page, request) {
+  const email = `study-${randomUUID()}@example.com`, password = "Study-browser-123";
+  expect((await request.post("http://127.0.0.1:4015/api/auth/register", { data: { fullName: "Người học thẻ", email, password, confirmPassword: password, role: "STUDENT" } })).status()).toBe(201);
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Mật khẩu", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({ name: "nguon-hoc-lieu.txt", mimeType: "text/plain", buffer: Buffer.from("Nguồn học liệu thử nghiệm.") });
+  await page.getByRole("button", { name: "Tải tài liệu lên", exact: true }).click();
+  await page.getByRole("button", { name: "Tạo học liệu từ nguon-hoc-lieu.txt", exact: true }).click();
+}
+async function cleanup(page, title) {
+  await page.getByRole("link", { name: "Học liệu", exact: true }).click();
+  await page.locator(".ws-learning-card").filter({ has: page.getByRole("heading", { name: title, exact: true }) }).getByRole("button", { name: "Xóa", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xóa học liệu", exact: true }).click();
+  await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("button", { name: "Xóa nguon-hoc-lieu.txt", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();
+}
+test("Flashcards save edited previews and remembered/not-remembered progress across reload", async ({ page, request }) => {
+  await setup(page, request);
+  await page.getByRole("button", { name: /Flashcard Ghi nhớ chủ động/ }).click();
+  await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Bộ thẻ lưu thật");
+  await page.getByLabel("Số thẻ mẫu", { exact: true }).fill("3");
+  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByRole("button", { name: "Chỉnh sửa Flashcard", exact: true }).click();
+  await page.getByLabel("Thẻ 1: Mặt trước", { exact: true }).fill("Thẻ trước khi lưu");
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/#\/content\/\d+$/);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Thẻ trước khi lưu", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Bắt đầu ôn tập", exact: true }).click();
+  await page.getByRole("button", { name: "Đã nhớ", exact: true }).click();
+  await expect(page.getByText("1/3 thẻ đã nhớ", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("1/3 thẻ đã nhớ", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chỉnh sửa", exact: true }).click();
+  await page.getByLabel("Tên học liệu", { exact: true }).fill("Bộ thẻ đổi tên");
+  await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Bộ thẻ đổi tên", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("1/3 thẻ đã nhớ", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Bắt đầu ôn tập", exact: true }).click();
+  await page.getByRole("button", { name: "Cần ôn lại", exact: true }).click();
+  await expect(page.getByText("0/3 thẻ đã nhớ", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("0/3 thẻ đã nhớ", { exact: true })).toBeVisible();
+  await cleanup(page, "Bộ thẻ đổi tên");
+});
+test("Mindmap stores preview edits and later changes with its complete tree", async ({ page, request }) => {
+  await setup(page, request);
+  await page.getByRole("button", { name: /Mindmap Kết nối ý tưởng/ }).click();
+  await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Mindmap lưu thật");
+  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByRole("button", { name: "Chỉnh sửa Mindmap", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm nhánh con", exact: true }).click();
+  await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("Nhánh lưu database");
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/#\/content\/\d+$/);
+  await page.reload();
+  await page.getByRole("button", { name: "Nút Nhánh lưu database", exact: true }).click();
+  await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("Nhánh đã sửa lần hai");
+  await page.getByRole("button", { name: "Lưu Mindmap", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Đã lưu Mindmap trên máy chủ");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Nút Nhánh đã sửa lần hai", exact: true })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Xuất PNG", exact: true }).click();
+  expect((await pending).suggestedFilename()).toBe("Mindmap lưu thật.png");
+  await cleanup(page, "Mindmap lưu thật");
+});

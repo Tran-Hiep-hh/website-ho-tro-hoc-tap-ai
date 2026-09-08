@@ -113,8 +113,8 @@ function Shell({ route, previewRole, onLogout }) {
       />
     );
   if (["contents", "content", "play", "results"].includes(section)) {
-    if (quizzesLoading) page = <Empty title="Đang tải Quiz và kết quả…" />;
-    else if (quizzesError) page = <Empty title="Không tải được Quiz" text={quizzesError} action={<Button onClick={reloadQuizzes}>Thử lại</Button>} />;
+    if (quizzesLoading) page = <Empty title="Đang tải học liệu và kết quả…" />;
+    else if (quizzesError) page = <Empty title="Không tải được học liệu" text={quizzesError} action={<Button onClick={reloadQuizzes}>Thử lại</Button>} />;
   }
   if (section === "generate") {
     if (documentsLoading) page = <Empty title="Đang tải tài liệu nguồn…" />;
@@ -224,7 +224,7 @@ function Shell({ route, previewRole, onLogout }) {
         </header>
         <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, Quiz cá nhân và điểm đã lưu trên máy chủ. AI tạo câu hỏi đang giả lập; Flashcard, Mindmap và lớp học vẫn là bản mẫu."}
+            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, Quiz, Flashcard, Mindmap và tiến độ đã lưu trên máy chủ. Nội dung AI đang giả lập; lớp học vẫn là bản mẫu."}
           </span>
           <div>
             {previewRole && (
@@ -246,7 +246,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: [...old.contents.filter((item) => item.persisted), ...initialData(user).contents.filter((item) => item.type !== "QUIZ")], attempts: old.attempts } : {}) }));
+                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts } : {}) }));
                     navigate("home");
                   },
                 })

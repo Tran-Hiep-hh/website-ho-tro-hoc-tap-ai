@@ -1,0 +1,9 @@
+ALTER TABLE generated_contents ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE flashcards ADD COLUMN IF NOT EXISTS keyword VARCHAR(100) NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS flashcard_progress (
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    flashcard_id BIGINT NOT NULL REFERENCES flashcards(flashcard_id) ON DELETE CASCADE,
+    remembered BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, flashcard_id)
+);

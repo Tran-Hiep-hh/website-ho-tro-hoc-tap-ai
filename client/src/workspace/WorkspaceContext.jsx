@@ -9,7 +9,7 @@ export const useWorkspace = () => useContext(Context);
 export function WorkspaceProvider({ user, previewRole, children }) {
   const [data, setData] = useState(() => {
     const initial = initialData(user);
-    return previewRole ? initial : { ...initial, documents: [], contents: initial.contents.filter((item) => item.type !== "QUIZ") };
+    return previewRole ? initial : { ...initial, documents: [], contents: [] };
   });
   const [quizzesLoading, setQuizzesLoading] = useState(!previewRole);
   const [quizzesError, setQuizzesError] = useState("");
@@ -17,8 +17,8 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     if (previewRole) return;
     setQuizzesLoading(true); setQuizzesError("");
     try {
-      const [library, history] = await Promise.all([apiRequest("/quizzes"), apiRequest("/quizzes/attempts")]);
-      setData((old) => ({ ...old, contents: [...library.contents, ...old.contents.filter((item) => item.type !== "QUIZ")], attempts: history.attempts }));
+      const [library, history, study] = await Promise.all([apiRequest("/quizzes"), apiRequest("/quizzes/attempts"), apiRequest("/study-materials")]);
+      setData((old) => ({ ...old, contents: [...library.contents, ...study.contents], learned: Object.fromEntries(study.contents.filter((item) => item.type === "FLASHCARD").map((item) => [item.id, item.learned])), attempts: history.attempts }));
     } catch (error) { setQuizzesError(error.message); }
     finally { setQuizzesLoading(false); }
   }
@@ -59,6 +59,7 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     setData((old) => ({
       ...old,
       [collection]: old[collection].filter((item) => item.id !== key),
+      ...(collection === "contents" ? { learned: Object.fromEntries(Object.entries(old.learned).filter(([id]) => id !== key)) } : {}),
     }));
   useEffect(() => {
     if (!toast) return;

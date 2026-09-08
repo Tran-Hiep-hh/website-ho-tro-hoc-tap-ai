@@ -8,6 +8,7 @@ import apiRouter from "./routes/index.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
 import { createDocumentRouter } from "./routes/documentRoutes.js";
 import { createQuizRouter } from "./routes/quizRoutes.js";
+import { createStudyRouter } from "./routes/studyRoutes.js";
 
 export function createApp({ authRepository, documentDatabase, documentStorageRoot } = {}) {
   const app = express();
@@ -26,6 +27,7 @@ export function createApp({ authRepository, documentDatabase, documentStorageRoo
   app.use("/api/auth", createAuthRouter(authRepository));
   app.use("/api/documents", createDocumentRouter({ authRepository, database: documentDatabase, storageRoot: documentStorageRoot }));
   app.use("/api/quizzes", createQuizRouter({ authRepository, database: documentDatabase }));
+  app.use("/api/study-materials", createStudyRouter({ authRepository, database: documentDatabase }));
   app.use("/api", apiRouter);
 
   app.use(notFound);

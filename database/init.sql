@@ -34,6 +34,7 @@ CREATE TABLE source_documents (
 );
 
 CREATE TABLE generated_contents (
+    revision INTEGER NOT NULL DEFAULT 1,
     generation_settings JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     content_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -82,6 +83,7 @@ CREATE TABLE answer_options (
 );
 
 CREATE TABLE flashcards (
+    keyword VARCHAR(100) NOT NULL DEFAULT '',
     flashcard_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     content_id BIGINT NOT NULL REFERENCES generated_contents(content_id) ON DELETE CASCADE,
     front_text TEXT NOT NULL,
@@ -96,6 +98,14 @@ CREATE TABLE mindmap_nodes (
     parent_node_id BIGINT REFERENCES mindmap_nodes(node_id) ON DELETE CASCADE,
     label VARCHAR(255) NOT NULL,
     display_order INTEGER NOT NULL CHECK (display_order > 0)
+);
+
+CREATE TABLE flashcard_progress (
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    flashcard_id BIGINT NOT NULL REFERENCES flashcards(flashcard_id) ON DELETE CASCADE,
+    remembered BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, flashcard_id)
 );
 
 CREATE TABLE classrooms (
