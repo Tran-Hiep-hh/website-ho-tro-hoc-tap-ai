@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiRequest } from "../lib/api.js";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { id } from "./data.js";
 import { Badge, Button, Empty, PageHeading, Progress } from "./ui.jsx";
@@ -17,8 +18,10 @@ export default function QuizPlayer({ mode, targetId }) {
           (item) => item.id === targetId && item.type === "QUIZ",
         )
       : null;
-  const questions = assignment?.questions ?? content?.questions ?? [];
-  const title = assignment?.title ?? content?.title;
+  const [serverAttempt, setServerAttempt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const questions = serverAttempt?.questions ?? assignment?.questions ?? content?.questions ?? [];
+  const title = serverAttempt?.title ?? assignment?.title ?? content?.title;
   const key = `${mode}:${targetId}`;
   const [answers, setAnswers] = useState(
     () => data.draftAnswers?.[key] ?? Array(questions.length).fill(-1),
@@ -42,9 +45,29 @@ export default function QuizPlayer({ mode, targetId }) {
       attemptCount < assignment.maxAttempts &&
       data.classes.some((cls) => cls.id === assignment.classId && cls.joined),
     );
-  function submit(automatic = false) {
+  async function start() {
+    if (busy) return;
+    if (!content?.persisted) { setStarted(true); return; }
+    setBusy(true);
+    try {
+      const result = await apiRequest(`/quizzes/${content.id}/attempts`, { method: "POST", body: {} });
+      setServerAttempt(result.attempt); setAnswers(Array(result.attempt.questions.length).fill(-1)); setStarted(true);
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function submit(automatic = false) {
     if (submitted.current) return;
     submitted.current = true;
+    if (content?.persisted) {
+      setBusy(true);
+      try {
+        const result = await apiRequest(`/quizzes/attempts/${serverAttempt.id}/submit`, { method: "POST", body: { answers } });
+        setData((old) => ({ ...old, attempts: [...old.attempts.filter((item) => item.id !== result.attempt.id), result.attempt] }));
+        navigate(`results/attempt/${result.attempt.id}`);
+      } catch (error) { submitted.current = false; notify(error.message); }
+      finally { setBusy(false); }
+      return;
+    }
     const correct = questions.filter(
       (question, qIndex) => question.answer === answers[qIndex],
     ).length;
@@ -139,8 +162,7 @@ export default function QuizPlayer({ mode, targetId }) {
             </span>
           </div>
           <p>
-            Câu trả lời được lưu trong phiên xem này. Bạn có thể quay lại các
-            câu trước khi nộp bài.
+            {content?.persisted ? "Khi nộp bài, máy chủ chấm điểm và lưu kết quả. Câu trả lời chưa nộp chỉ giữ trong trang hiện tại; tải lại trang sẽ phải chọn lại." : "Câu trả lời được lưu trong phiên xem này. Bạn có thể quay lại các câu trước khi nộp bài."}
           </p>
           <div className="ws-actions">
             <Button
@@ -155,7 +177,7 @@ export default function QuizPlayer({ mode, targetId }) {
             >
               Quay lại
             </Button>
-            <Button icon="arrow" onClick={() => setStarted(true)}>
+            <Button icon="arrow" disabled={busy} onClick={start}>
               Bắt đầu Quiz
             </Button>
           </div>
@@ -189,7 +211,7 @@ export default function QuizPlayer({ mode, targetId }) {
             <span className="ws-muted">Trắc nghiệm một lựa chọn</span>
           </div>
           <h2>{question.text}</h2>
-          <fieldset className="ws-answer-options">
+          <fieldset className="ws-answer-options" disabled={busy}>
             <legend className="ws-sr-only">Chọn đáp án</legend>
             {question.options.map((option, optionIndex) => (
               <label
@@ -258,6 +280,7 @@ export default function QuizPlayer({ mode, targetId }) {
           </div>
           <Button
             icon="check"
+            disabled={busy}
             onClick={() =>
               confirm({
                 title: "Nộp bài Quiz?",

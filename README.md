@@ -105,6 +105,18 @@ Tệp gốc lưu ở `uploads/` tại thư mục gốc dự án (hoặc `UPLOAD_
 
 Các phần tạo AI, lớp học và kết quả vẫn là giao diện mẫu. Nút đặt lại dữ liệu mẫu không xóa tài liệu thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
 
+## Quiz cá nhân với AI giả lập
+
+Không cần DeepSeek API key. Sau khi đăng nhập thật, chọn một tài liệu cá nhân đã xử lý → **Tạo học liệu** → **Quiz** → nhập tên, độ khó, số câu và yêu cầu bổ sung nếu có → **Xem kết quả mẫu** → **Lưu vào thư viện**. Quiz, thiết lập và yêu cầu bổ sung được lưu vào PostgreSQL; có thể chỉnh sửa, làm bài và xem lại kết quả sau khi tải lại trang.
+
+Chế độ hiện tại luôn là **MOCK**, dùng 5 câu hỏi minh họa về cơ sở dữ liệu, không phân tích tài liệu và không áp dụng yêu cầu bổ sung. Mỗi câu có 4 lựa chọn và 1 đáp án đúng; số lượng 1–20, trên 5 câu sẽ lặp lại bộ mẫu. Giao diện ghi rõ giới hạn này. Cấu trúc tạo câu hỏi được tách trong `server/src/services/quizGenerator.js` để tích hợp nhà cung cấp AI sau; thêm API key chưa tự động chuyển sang DeepSeek.
+
+API `/api/quizzes` yêu cầu đăng nhập và kiểm tra quyền sở hữu tài liệu nguồn/Quiz/lượt làm. Máy chủ chấm điểm từ đáp án của phiên bản đã bắt đầu; không nhận điểm do client tự tính. Điểm lưu theo tỷ lệ 0–100 để tương thích cấu trúc cũ, giao diện đổi sang thang 10 (60 → 6/10). Chỉnh sửa tạo phiên bản mới, giữ nguyên câu hỏi và kết quả của lượt làm cũ. Gửi lại yêu cầu nộp cùng lượt không tạo điểm hoặc câu trả lời trùng. Lựa chọn chưa nộp chỉ nằm trong trang hiện tại; tải lại trang cần chọn lại.
+
+Chạy `npm run migrate --workspace server` cho database đã có. Migration `003_quizzes.sql` bổ sung cấu hình tạo, ngày tạo, tiêu đề phiên bản và nhãn nguồn câu hỏi; giữ nguyên dữ liệu cũ. Xóa Quiz khỏi thư viện vẫn giữ lịch sử làm bài. Flashcard, Mindmap và giao bài trong lớp hiện vẫn là giao diện mẫu.
+
+Kiểm thử: `npm run test --workspace server` kiểm tra quyền sở hữu, phiên bản, chấm điểm và yêu cầu đồng thời; `npm run test:e2e --workspace client` kiểm tra luồng Quiz trên trình duyệt với PostgreSQL thật trong schema riêng.
+
 ## Bản xem trước giao diện máy tính
 
 Chỉ cần chạy frontend, không cần Docker, API hoặc khóa DeepSeek:

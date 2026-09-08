@@ -26,9 +26,11 @@ function layoutTree(nodes) {
   };
 }
 
-export default function MindmapEditor({ item }) {
+export default function MindmapEditor({ item, onChange }) {
   const { update, notify, confirm } = useWorkspace();
-  const [nodes, setNodes] = useState(() => structuredClone(item.nodes));
+  const [localNodes, setLocalNodes] = useState(() => structuredClone(item.nodes));
+  const nodes = onChange ? item.nodes : localNodes;
+  const setNodes = (next) => onChange ? onChange(next) : setLocalNodes(next);
   const [selected, setSelected] = useState(item.nodes[0].id);
   const [zoom, setZoom] = useState(1);
   const svgRef = useRef(null);
@@ -115,7 +117,7 @@ export default function MindmapEditor({ item }) {
           <Button variant="secondary" onClick={exportPdf}>
             In / Lưu PDF
           </Button>
-          <Button
+          {!onChange && <Button
             icon="check"
             onClick={() => {
               if (nodes.some((entry) => !entry.label.trim())) {
@@ -127,7 +129,7 @@ export default function MindmapEditor({ item }) {
             }}
           >
             Lưu Mindmap
-          </Button>
+          </Button>}
         </div>
       </div>
       <div className="ws-mindmap-layout">
@@ -319,8 +321,7 @@ export default function MindmapEditor({ item }) {
             </>
           )}
           <small>
-            {nodes.length}/30 nút trong bản xem trước. Nhấn Lưu Mindmap để giữ
-            thay đổi trong phiên này.
+            {nodes.length}/30 nút. {onChange ? "Thay đổi được giữ trong bản nháp. Nhấn Lưu vào thư viện ở phía trên khi hoàn tất." : "Nhấn Lưu Mindmap để giữ thay đổi trong phiên này."}
           </small>
         </aside>
       </div>

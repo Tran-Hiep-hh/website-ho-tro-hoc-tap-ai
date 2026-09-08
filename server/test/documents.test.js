@@ -81,7 +81,7 @@ test("extracts real PDF and DOCX text and preserves the original files", async (
   const xref = Buffer.byteLength(pdf);
   pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   // Mammoth ships this small, valid Word fixture with its installed package.
-  const docx = await readFile(new URL("../../../node_modules/mammoth/test/test-data/single-paragraph.docx", import.meta.url));
+  const docx = await readFile(new URL("../../node_modules/mammoth/test/test-data/single-paragraph.docx", import.meta.url));
   for (const [name, bytes, expected] of [["document.pdf", Buffer.from(pdf), /Database study document/], ["document.docx", docx, /./]]) {
     const response = await upload(name, bytes);
     assert.equal(response.status, 201);

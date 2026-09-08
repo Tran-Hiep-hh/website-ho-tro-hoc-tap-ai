@@ -7,7 +7,22 @@ const Context = createContext(null);
 export const useWorkspace = () => useContext(Context);
 
 export function WorkspaceProvider({ user, previewRole, children }) {
-  const [data, setData] = useState(() => ({ ...initialData(user), ...(!previewRole ? { documents: [] } : {}) }));
+  const [data, setData] = useState(() => {
+    const initial = initialData(user);
+    return previewRole ? initial : { ...initial, documents: [], contents: initial.contents.filter((item) => item.type !== "QUIZ") };
+  });
+  const [quizzesLoading, setQuizzesLoading] = useState(!previewRole);
+  const [quizzesError, setQuizzesError] = useState("");
+  async function reloadQuizzes() {
+    if (previewRole) return;
+    setQuizzesLoading(true); setQuizzesError("");
+    try {
+      const [library, history] = await Promise.all([apiRequest("/quizzes"), apiRequest("/quizzes/attempts")]);
+      setData((old) => ({ ...old, contents: [...library.contents, ...old.contents.filter((item) => item.type !== "QUIZ")], attempts: history.attempts }));
+    } catch (error) { setQuizzesError(error.message); }
+    finally { setQuizzesLoading(false); }
+  }
+  useEffect(() => { reloadQuizzes(); }, [user.userId, previewRole]);
   const [documentsLoading, setDocumentsLoading] = useState(!previewRole);
   const [documentsError, setDocumentsError] = useState("");
   async function reloadDocuments() {
@@ -54,6 +69,9 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     <Context.Provider
       value={{
         data,
+        quizzesLoading,
+        quizzesError,
+        reloadQuizzes,
         documentsLoading,
         documentsError,
         reloadDocuments,

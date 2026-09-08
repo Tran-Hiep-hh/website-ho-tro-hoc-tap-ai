@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { apiRequest } from "../lib/api.js";
+import MindmapEditor from "./MindmapEditor.jsx";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, sampleContent, typeIcons, typeLabels } from "./data.js";
@@ -38,9 +40,15 @@ export function LibraryPage() {
     }
     confirm({
       title: "Xóa học liệu?",
-      text: `Xóa “${item.title}” khỏi thư viện mẫu?`,
+      text: item.persisted ? `Xóa “${item.title}” khỏi thư viện? Lịch sử làm bài vẫn được giữ lại.` : `Xóa “${item.title}” khỏi thư viện mẫu?`,
       label: "Xóa học liệu",
-      action: () => remove("contents", item.id),
+      action: async () => {
+        if (item.persisted) {
+          try { await apiRequest(`/quizzes/${item.id}`, { method: "DELETE", body: {} }); }
+          catch (error) { notify(error.message); return; }
+        }
+        remove("contents", item.id);
+      },
     });
   }
   return (
@@ -100,6 +108,7 @@ export function LibraryPage() {
             </div>
             <div className="ws-class-card-body">
               <div className="ws-card-labels">
+                {item.generationMode === "MOCK" && <Badge tone="orange">AI giả lập · Đã lưu</Badge>}
                 <Badge
                   tone={
                     item.type === "QUIZ"
@@ -158,13 +167,16 @@ export function LibraryPage() {
 }
 
 export function GeneratePage({ sourceId }) {
-  const { accessibleDocuments, setData, navigate, notify } = useWorkspace();
+  const { accessibleDocuments, setData, navigate, notify, isPreview } = useWorkspace();
   const [type, setType] = useState("QUIZ");
   const [sources, setSources] = useState(accessibleDocuments.some((item) => item.id === sourceId && item.status === "READY") ? [sourceId] : []);
   const [preview, setPreview] = useState(null);
+  const [editingPreview, setEditingPreview] = useState(false);
+  const [formValues, setFormValues] = useState({});
   const [contentRequest, setContentRequest] = useState("");
   const [error, setError] = useState("");
-  function generate(event) {
+  const [busy, setBusy] = useState(false);
+  async function generate(event) {
     event.preventDefault();
     setError("");
     if (!sources.length) {
@@ -172,6 +184,17 @@ export function GeneratePage({ sourceId }) {
       return;
     }
     const values = Object.fromEntries(new FormData(event.currentTarget));
+    setFormValues(values);
+    setEditingPreview(false);
+    if (!isPreview && type === "QUIZ") {
+      setBusy(true);
+      try {
+        const result = await apiRequest("/quizzes/generate", { method: "POST", body: { title: values.title.trim(), difficulty: values.difficulty, sources, contentRequest, quantity: Number(values.quantity) } });
+        setPreview(result.content);
+      } catch (error) { setError(error.message); }
+      finally { setBusy(false); }
+      return;
+    }
     const next = sampleContent(
       type,
       values.title.trim() || "Ôn tập cơ sở dữ liệu",
@@ -189,12 +212,30 @@ export function GeneratePage({ sourceId }) {
       );
     setPreview(next);
   }
+  async function savePreview() {
+    if (busy) return;
+    if (preview.type === "FLASHCARD" && (!preview.cards.length || preview.cards.some((card) => !card.front.trim() || !card.back.trim()))) {
+      setError("Mỗi Flashcard cần có nội dung ở cả mặt trước và mặt sau."); return;
+    }
+    if (preview.type === "MINDMAP" && preview.nodes.some((node) => !node.label.trim())) {
+      setError("Mỗi nút Mindmap cần có nội dung."); return;
+    }
+    setBusy(true); setError("");
+    try {
+      const saved = !isPreview && preview.type === "QUIZ"
+        ? (await apiRequest("/quizzes", { method: "POST", body: preview })).content : preview;
+      setData((old) => ({ ...old, contents: [...old.contents, saved] }));
+      notify(saved.persisted ? "Đã lưu Quiz vào database." : "Đã lưu học liệu mẫu trong phiên xem.");
+      navigate(`content/${saved.id}`);
+    } catch (error) { setError(error.message); }
+    finally { setBusy(false); }
+  }
   if (preview)
     return (
       <>
         <PageHeading
           title="Xem trước học liệu"
-          description="Kiểm tra kết quả mẫu trước khi lưu vào thư viện. Bạn có thể chỉnh sửa sau khi lưu."
+          description="Kiểm tra và chỉnh sửa nội dung trước khi lưu vào thư viện. Bạn cũng có thể chỉnh sửa sau khi lưu."
           action={
             <>
               <Button
@@ -206,16 +247,13 @@ export function GeneratePage({ sourceId }) {
               </Button>
               <Button
                 icon="check"
-                onClick={() => {
-                  setData((old) => ({
-                    ...old,
-                    contents: [...old.contents, preview],
-                  }));
-                  notify("Đã lưu học liệu mẫu vào thư viện của phiên xem.");
-                  navigate(`content/${preview.id}`);
-                }}
+                disabled={busy}
+                onClick={savePreview}
               >
                 Lưu vào thư viện
+              </Button>
+              <Button variant="secondary" icon="edit" disabled={busy} onClick={() => setEditingPreview(!editingPreview)}>
+                {preview.type === "QUIZ" ? (editingPreview ? "Xem lại câu hỏi" : "Chỉnh sửa câu hỏi") : preview.type === "FLASHCARD" ? (editingPreview ? "Xem lại thẻ" : "Chỉnh sửa Flashcard") : (editingPreview ? "Xem lại sơ đồ" : "Chỉnh sửa Mindmap")}
               </Button>
             </>
           }
@@ -223,10 +261,10 @@ export function GeneratePage({ sourceId }) {
         <div className="ws-info-banner">
           <Icon name="spark" />
           <p>
-            Đây là nội dung minh họa cố định về cơ sở dữ liệu, chưa phải kết quả
-            phân tích tài liệu bằng AI.
+            {preview.type === "QUIZ" ? "AI giả lập: câu hỏi minh họa cố định về cơ sở dữ liệu, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. Quiz luôn có 4 lựa chọn và 1 đáp án đúng. Khi lưu Quiz bằng tài khoản thật, nội dung được lưu vào database." : "Nội dung minh họa cố định, chưa phân tích tài liệu bằng AI. Flashcard và Mindmap hiện chỉ lưu trong phiên xem; tải lại trang sẽ đặt lại dữ liệu mẫu."}
           </p>
         </div>
+        {error && <p className="ws-inline-error" role="alert">{error}</p>}
         <section className="ws-panel">
           {preview.contentRequest && (
             <div className="ws-info-banner">
@@ -241,7 +279,15 @@ export function GeneratePage({ sourceId }) {
             <Badge>{typeLabels[preview.type]}</Badge>
           </div>
           {preview.type === "QUIZ" ? (
-            preview.questions.map((question, index) => (
+            preview.questions.map((question, index) => editingPreview ? (
+              <section className="ws-question-edit" key={index}>
+                <Badge>Câu {index + 1}</Badge>
+                <Field label={`Nội dung câu ${index + 1}`}><textarea maxLength={4000} value={question.text} onChange={(event) => setPreview({ ...preview, questions: preview.questions.map((q, i) => i === index ? { ...q, text: event.target.value } : q) })} /></Field>
+                {question.options.map((option, key) => <Field key={key} label={`Câu ${index + 1}: lựa chọn ${String.fromCharCode(65 + key)}`}><input maxLength={2000} value={option} onChange={(event) => setPreview({ ...preview, questions: preview.questions.map((q, i) => i === index ? { ...q, options: q.options.map((o, k) => k === key ? event.target.value : o) } : q) })} /></Field>)}
+                <Field label={`Đáp án đúng câu ${index + 1}`}><select value={question.answer} onChange={(event) => setPreview({ ...preview, questions: preview.questions.map((q, i) => i === index ? { ...q, answer: Number(event.target.value) } : q) })}>{question.options.map((_, key) => <option value={key} key={key}>{String.fromCharCode(65 + key)}</option>)}</select></Field>
+                <Field label={`Giải thích câu ${index + 1}`}><textarea maxLength={4000} value={question.explanation} onChange={(event) => setPreview({ ...preview, questions: preview.questions.map((q, i) => i === index ? { ...q, explanation: event.target.value } : q) })} /></Field>
+              </section>
+            ) : (
               <div className="ws-question-preview" key={index}>
                 <strong>
                   {index + 1}. {question.text}
@@ -260,14 +306,27 @@ export function GeneratePage({ sourceId }) {
             ))
           ) : preview.type === "FLASHCARD" ? (
             <div className="ws-card-grid">
-              {preview.cards.map((card, index) => (
+              {preview.cards.map((card, index) => editingPreview ? (
+                <div className="ws-mini-card" key={index}>
+                  <Badge tone="orange">Thẻ {index + 1}</Badge>
+                  {[ ["front", "Mặt trước"], ["back", "Mặt sau"] ].map(([field, label]) => (
+                    <Field key={field} label={`Thẻ ${index + 1}: ${label}`}>
+                      <textarea aria-label={`Thẻ ${index + 1}: ${label}`} rows={4} maxLength={4000} value={card[field]} onChange={(event) => setPreview({ ...preview, cards: preview.cards.map((entry, key) => key === index ? { ...entry, [field]: event.target.value } : entry) })} />
+                    </Field>
+                  ))}
+                  <Button variant="ghost" disabled={preview.cards.length <= 1} onClick={() => setPreview({ ...preview, cards: preview.cards.filter((_, key) => key !== index) })}>Xóa thẻ {index + 1}</Button>
+                </div>
+              ) : (
                 <div className="ws-mini-card" key={index}>
                   <Badge tone="orange">Thẻ {index + 1}</Badge>
                   <h3>{card.front}</h3>
                   <p>{card.back}</p>
                 </div>
               ))}
+              {editingPreview && <Button variant="secondary" icon="plus" disabled={preview.cards.length >= 50} onClick={() => setPreview({ ...preview, cards: [...preview.cards, { front: "", back: "", keyword: "" }] })}>Thêm thẻ</Button>}
             </div>
+          ) : editingPreview ? (
+            <MindmapEditor item={preview} onChange={(nodes) => setPreview((old) => ({ ...old, nodes }))} />
           ) : (
             <ul className="ws-tree-list">
               {preview.nodes.map((node) => (
@@ -348,6 +407,7 @@ export function GeneratePage({ sourceId }) {
           <Field label="Tên học liệu / Chủ đề">
             <input
               name="title"
+              defaultValue={formValues.title ?? ""}
               placeholder="Ví dụ: Ôn tập cơ sở dữ liệu — Chương 2"
               maxLength={150}
               required
@@ -355,7 +415,7 @@ export function GeneratePage({ sourceId }) {
           </Field>
           <Field
             label="Nội dung muốn tạo (không bắt buộc)"
-            hint="Mô tả chủ đề cần tập trung, cách đặt câu hỏi và yêu cầu về câu trả lời. Có thể để trống."
+            hint={type === "QUIZ" ? "Mặc định: 4 lựa chọn và 1 đáp án đúng mỗi câu. Chỉ nhập nếu có yêu cầu bổ sung; chế độ giả lập lưu yêu cầu nhưng chưa áp dụng." : "Mô tả yêu cầu bổ sung nếu có. Có thể để trống."}
           >
             <textarea
               name="contentRequest"
@@ -368,7 +428,7 @@ export function GeneratePage({ sourceId }) {
           </Field>
           <div className="ws-form-grid">
             <Field label="Độ khó">
-              <select name="difficulty" defaultValue="Trung bình">
+              <select name="difficulty" defaultValue={formValues.difficulty ?? "Trung bình"}>
                 <option>Dễ</option>
                 <option>Trung bình</option>
                 <option>Khó</option>
@@ -376,7 +436,7 @@ export function GeneratePage({ sourceId }) {
             </Field>
             {type === "MINDMAP" ? (
               <Field label="Mức độ chi tiết">
-                <select name="detail">
+                <select name="detail" defaultValue={formValues.detail ?? "detailed"}>
                   <option value="detailed">Chi tiết — 3 cấp</option>
                   <option value="overview">Tổng quan — 2 cấp</option>
                 </select>
@@ -388,8 +448,8 @@ export function GeneratePage({ sourceId }) {
                   type="number"
                   name="quantity"
                   min={1}
-                  max={type === "QUIZ" ? 5 : 6}
-                  defaultValue={type === "QUIZ" ? 5 : 6}
+                  max={type === "QUIZ" ? (isPreview ? 5 : 20) : 6}
+                  defaultValue={formValues.quantity ?? (type === "QUIZ" ? 5 : 6)}
                   required
                 />
               </Field>
@@ -401,9 +461,9 @@ export function GeneratePage({ sourceId }) {
             </p>
           )}
           <div className="ws-form-footer">
-            <span>Nội dung mẫu giúp bạn xem trước luồng tạo học liệu.</span>
-            <Button type="submit" icon="spark">
-              Xem kết quả mẫu
+            <span>AI giả lập dùng 5 câu hỏi minh họa; số lượng lớn hơn sẽ lặp lại. Không cần API key.</span>
+            <Button type="submit" icon="spark" disabled={busy}>
+              {busy ? "Đang tạo…" : "Xem kết quả mẫu"}
             </Button>
           </div>
         </form>

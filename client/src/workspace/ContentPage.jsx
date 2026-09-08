@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiRequest } from "../lib/api.js";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { typeLabels } from "./data.js";
@@ -9,6 +10,7 @@ export default function ContentPage({ contentId }) {
   const { data, setData, update, navigate, isTeacher, notify } = useWorkspace();
   const item = data.contents.find((content) => content.id === contentId);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(() =>
     item ? structuredClone(item) : null,
   );
@@ -26,9 +28,20 @@ export default function ContentPage({ contentId }) {
       />
     );
   const known = data.learned[item.id] ?? [];
-  function save(event) {
+  async function save(event) {
     event.preventDefault();
     if (!draft.title.trim()) return;
+    if (item.persisted) {
+      if (saving) return;
+      setSaving(true);
+      try {
+        const result = await apiRequest(`/quizzes/${item.id}`, { method: "PUT", body: draft });
+        update("contents", item.id, result.content);
+        setEditing(false); notify("Đã lưu phiên bản Quiz mới. Kết quả các lượt làm cũ được giữ nguyên.");
+      } catch (error) { notify(error.message); }
+      finally { setSaving(false); }
+      return;
+    }
     if (
       item.type === "QUIZ" &&
       data.assignments.some(
@@ -259,7 +272,7 @@ export default function ContentPage({ contentId }) {
             <Button variant="secondary" onClick={() => setEditing(false)}>
               Hủy chỉnh sửa
             </Button>
-            <Button type="submit" icon="check">
+            <Button type="submit" icon="check" disabled={saving}>
               Lưu thay đổi
             </Button>
           </div>
@@ -324,6 +337,8 @@ export default function ContentPage({ contentId }) {
       />
       {item.type === "QUIZ" && (
         <section className="ws-panel">
+          {item.generationMode === "MOCK" && <div className="ws-info-banner"><p>AI giả lập · Quiz đã lưu trên máy chủ. Câu hỏi minh họa không được tạo từ tài liệu của bạn; có thể chỉnh sửa trước khi sử dụng.</p></div>}
+          {item.contentRequest && <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>Yêu cầu bổ sung: {item.contentRequest}</p>}
           <div className="ws-section-heading">
             <h2>{item.questions.length} câu hỏi</h2>
             <Badge>Có đáp án và giải thích</Badge>

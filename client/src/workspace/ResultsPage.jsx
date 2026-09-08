@@ -15,8 +15,8 @@ import {
 } from "./ui.jsx";
 
 export default function ResultsPage({ segments = [] }) {
-  const { data, isTeacher, navigate } = useWorkspace();
-  const [tab, setTab] = useState(isTeacher ? "class" : "personal");
+  const { data, isTeacher, navigate, isPreview } = useWorkspace();
+  const [tab, setTab] = useState(isTeacher && isPreview ? "class" : "personal");
   const initialAssignment = data.assignments.find(
     (item) => item.id === segments[1],
   );
@@ -448,7 +448,7 @@ export default function ResultsPage({ segments = [] }) {
               <div className="ws-stat" key={label}>
                 <span className="ws-muted">{label}</span>
                 <strong>{value}</strong>
-                <small>Trong phiên xem hiện tại</small>
+                <small>{isPreview ? "Trong phiên xem hiện tại" : "Quiz cá nhân được lưu trên máy chủ"}</small>
               </div>
             ))}
           </div>

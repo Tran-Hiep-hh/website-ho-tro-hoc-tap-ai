@@ -34,6 +34,8 @@ CREATE TABLE source_documents (
 );
 
 CREATE TABLE generated_contents (
+    generation_settings JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     content_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     owner_id BIGINT NOT NULL REFERENCES users(user_id),
     content_type VARCHAR(20) NOT NULL
@@ -52,6 +54,7 @@ CREATE TABLE content_sources (
 );
 
 CREATE TABLE quiz_versions (
+    title VARCHAR(255),
     quiz_version_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     quiz_id BIGINT NOT NULL REFERENCES generated_contents(content_id),
     version_number INTEGER NOT NULL CHECK (version_number > 0),
@@ -59,6 +62,7 @@ CREATE TABLE quiz_versions (
 );
 
 CREATE TABLE quiz_questions (
+    source_label TEXT,
     question_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     quiz_version_id BIGINT NOT NULL REFERENCES quiz_versions(quiz_version_id) ON DELETE CASCADE,
     question_text TEXT NOT NULL,

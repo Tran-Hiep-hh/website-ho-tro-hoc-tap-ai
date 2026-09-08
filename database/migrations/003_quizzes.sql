@@ -1,0 +1,4 @@
+ALTER TABLE generated_contents ADD COLUMN IF NOT EXISTS generation_settings JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE generated_contents ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE quiz_versions ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS source_label TEXT;

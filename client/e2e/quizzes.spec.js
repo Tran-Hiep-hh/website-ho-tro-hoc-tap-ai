@@ -1,0 +1,58 @@
+import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+
+test("mock Quiz saves, edits, scores on server and survives reload", async ({ page, request }) => {
+  const email = `quiz-${randomUUID()}@example.com`, password = "Quiz-browser-123";
+  expect((await request.post("http://127.0.0.1:4015/api/auth/register", { data: { fullName: "Người học Quiz", email, password, confirmPassword: password, role: "STUDENT" } })).status()).toBe(201);
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Mật khẩu", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({ name: "nguon-quiz.txt", mimeType: "text/plain", buffer: Buffer.from("Tài liệu cơ sở dữ liệu cho Quiz.") });
+  await page.getByRole("button", { name: "Tải tài liệu lên", exact: true }).click();
+  await page.getByRole("button", { name: "Tạo học liệu từ nguon-quiz.txt", exact: true }).click();
+  await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Quiz lưu thật");
+  await page.getByLabel("Nội dung muốn tạo (không bắt buộc)", { exact: false }).fill("Giải thích đơn giản, dễ hiểu.");
+  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Xem trước học liệu", exact: true })).toBeVisible();
+  await expect(page.getByText(/AI giả lập: câu hỏi minh họa/)).toBeVisible();
+  await page.getByRole("button", { name: "Chỉnh sửa câu hỏi", exact: true }).click();
+  await page.getByRole("textbox", { name: "Nội dung câu 1", exact: true }).fill("Câu hỏi đã sửa trước khi lưu: khóa chính có vai trò gì?");
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/#\/content\/\d+$/);
+  await expect(page.getByRole("heading", { name: "Quiz lưu thật", exact: true })).toBeVisible();
+  const quizUrl = page.url();
+  await page.reload();
+  await expect(page.getByText("Yêu cầu bổ sung: Giải thích đơn giản, dễ hiểu.", { exact: true })).toBeVisible();
+  await expect(page.getByText("1. Câu hỏi đã sửa trước khi lưu: khóa chính có vai trò gì?", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chỉnh sửa", exact: true }).click();
+  await page.getByLabel("Tên học liệu", { exact: true }).fill("Quiz đã chỉnh sửa");
+  await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Quiz đã chỉnh sửa", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Quiz đã chỉnh sửa", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Làm Quiz", exact: true }).click();
+  await page.getByRole("button", { name: "Bắt đầu Quiz", exact: true }).click();
+  for (let index = 0; index < 3; index++) {
+    await page.getByRole("radio").nth(index).check();
+    await page.getByRole("button", { name: "Câu tiếp", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Nộp bài", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Nộp bài", exact: true }).click();
+  await expect(page.locator(".ws-score-ring strong")).toHaveText("6/10");
+  await page.reload();
+  await expect(page.locator(".ws-score-ring strong")).toHaveText("6/10");
+  await page.getByRole("button", { name: "Xem lịch sử", exact: true }).click();
+  await expect(page.getByRole("cell", { name: "6/10", exact: true })).toBeVisible();
+  await page.goto(quizUrl);
+  await page.getByRole("button", { name: "Thư viện học liệu", exact: true }).click();
+  await page.locator(".ws-learning-card").filter({ hasText: "Quiz đã chỉnh sửa" }).getByRole("button", { name: "Xóa", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xóa học liệu", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Quiz đã chỉnh sửa", exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("button", { name: "Xóa nguon-quiz.txt", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();
+});

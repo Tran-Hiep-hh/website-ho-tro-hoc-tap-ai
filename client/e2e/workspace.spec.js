@@ -1,5 +1,46 @@
 import { test, expect } from "@playwright/test";
 
+test("Flashcard edits before saving survive preview toggles and library save", async ({ page }) => {
+  await page.goto("/#/preview/teacher/generate/doc-3");
+  await page.getByRole("button", { name: /Flashcard Ghi nhớ chủ động/ }).click();
+  await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Bộ thẻ chỉnh trước");
+  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByRole("button", { name: "Chỉnh sửa Flashcard", exact: true }).click();
+  await page.getByLabel("Thẻ 1: Mặt trước", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("cả mặt trước và mặt sau");
+  await page.getByLabel("Thẻ 1: Mặt trước", { exact: true }).fill("Khái niệm đã chỉnh trước khi lưu");
+  await page.getByLabel("Thẻ 1: Mặt sau", { exact: true }).fill("Giải thích đã chỉnh trước khi lưu");
+  await page.getByRole("button", { name: "Xem lại thẻ", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Khái niệm đã chỉnh trước khi lưu", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chỉnh sửa Flashcard", exact: true }).click();
+  await expect(page.getByLabel("Thẻ 1: Mặt sau", { exact: true })).toHaveValue("Giải thích đã chỉnh trước khi lưu");
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/\/content\//);
+  await expect(page.getByText("Giải thích đã chỉnh trước khi lưu", { exact: true })).toBeVisible();
+});
+
+test("Mindmap preview edits flow directly into the saved library item", async ({ page }) => {
+  await page.goto("/#/preview/teacher/generate/doc-3");
+  await page.getByRole("button", { name: /Mindmap Kết nối ý tưởng/ }).click();
+  await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Sơ đồ chỉnh trước");
+  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByRole("button", { name: "Chỉnh sửa Mindmap", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm nhánh con", exact: true }).click();
+  await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("");
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Mỗi nút Mindmap cần có nội dung");
+  await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("Nhánh chỉnh trước khi lưu");
+  await page.getByRole("button", { name: "Xem lại sơ đồ", exact: true }).click();
+  await expect(page.getByText("Nhánh chỉnh trước khi lưu", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chỉnh sửa Mindmap", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Nút Nhánh chỉnh trước khi lưu", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Lưu Mindmap", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/\/content\//);
+  await expect(page.getByRole("button", { name: "Nút Nhánh chỉnh trước khi lưu", exact: true })).toBeVisible();
+});
+
 test("student documents stay personal and class files remain read-only", async ({ page }) => {
   await page.goto("/#/preview/student/documents");
   await expect(page.getByRole("button", { name: "Xem Ghi chú ôn tập SQL.txt", exact: true })).toBeVisible();
@@ -24,6 +65,8 @@ test("student documents stay personal and class files remain read-only", async (
 
 test("real-account navigation uses the auth API contract and protects signed-out pages", async ({ page }) => {
   let signedIn = false;
+  await page.route("**/api/quizzes", (route) => route.fulfill({ json: { success: true, contents: [] } }));
+  await page.route("**/api/quizzes/attempts", (route) => route.fulfill({ json: { success: true, attempts: [] } }));
   await page.route("**/api/documents", (route) => route.fulfill({ json: { success: true, documents: [] } }));
   const user = { userId: "123", fullName: "Nguyễn Minh An", email: "an@example.com", role: "TEACHER" };
   await page.route("**/api/auth/**", async (route) => {

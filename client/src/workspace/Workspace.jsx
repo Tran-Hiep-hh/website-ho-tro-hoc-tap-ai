@@ -29,7 +29,7 @@ const navigation = [
 ];
 
 function Shell({ route, previewRole, onLogout }) {
-  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments } =
+  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments, quizzesLoading, quizzesError, reloadQuizzes, documentsLoading, documentsError, reloadDocuments } =
     useWorkspace();
   const [pending, setPending] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -112,6 +112,14 @@ function Shell({ route, previewRole, onLogout }) {
         action={<Button onClick={() => navigate("home")}>Về tổng quan</Button>}
       />
     );
+  if (["contents", "content", "play", "results"].includes(section)) {
+    if (quizzesLoading) page = <Empty title="Đang tải Quiz và kết quả…" />;
+    else if (quizzesError) page = <Empty title="Không tải được Quiz" text={quizzesError} action={<Button onClick={reloadQuizzes}>Thử lại</Button>} />;
+  }
+  if (section === "generate") {
+    if (documentsLoading) page = <Empty title="Đang tải tài liệu nguồn…" />;
+    else if (documentsError) page = <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
+  }
   return (
     <div className="ws-app">
       <aside className="ws-sidebar">
@@ -216,7 +224,7 @@ function Shell({ route, previewRole, onLogout }) {
         </header>
         <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">{previewRole ? "Bản xem trước" : "Đang phát triển"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu cá nhân đã lưu trên máy chủ. Các phần học liệu, lớp học và kết quả đang dùng dữ liệu mẫu."}
+            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, Quiz cá nhân và điểm đã lưu trên máy chủ. AI tạo câu hỏi đang giả lập; Flashcard, Mindmap và lớp học vẫn là bản mẫu."}
           </span>
           <div>
             {previewRole && (
@@ -238,7 +246,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents } : {}) }));
+                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: [...old.contents.filter((item) => item.persisted), ...initialData(user).contents.filter((item) => item.type !== "QUIZ")], attempts: old.attempts } : {}) }));
                     navigate("home");
                   },
                 })
