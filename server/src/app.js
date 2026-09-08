@@ -6,8 +6,9 @@ import { errorHandler } from "./middlewares/errorHandler.js";
 import { notFound } from "./middlewares/notFound.js";
 import apiRouter from "./routes/index.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
+import { createDocumentRouter } from "./routes/documentRoutes.js";
 
-export function createApp({ authRepository } = {}) {
+export function createApp({ authRepository, documentDatabase, documentStorageRoot } = {}) {
   const app = express();
 
   app.disable("x-powered-by");
@@ -22,6 +23,7 @@ export function createApp({ authRepository } = {}) {
   app.use(express.urlencoded({ extended: true }));
 
   app.use("/api/auth", createAuthRouter(authRepository));
+  app.use("/api/documents", createDocumentRouter({ authRepository, database: documentDatabase, storageRoot: documentStorageRoot }));
   app.use("/api", apiRouter);
 
   app.use(notFound);

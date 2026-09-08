@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
+import { apiRequest } from "../lib/api.js";
 import {
   Badge,
   Button,
@@ -14,7 +15,7 @@ import {
 } from "./ui.jsx";
 
 export default function DocumentsPage({ documentId }) {
-  const { data, setData, navigate, remove, confirm, notify, ownerId, personalDocuments, accessibleDocuments } = useWorkspace();
+  const { data, setData, navigate, remove, confirm, notify, ownerId, personalDocuments, accessibleDocuments, isPreview, documentsLoading, documentsError, reloadDocuments } = useWorkspace();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("ALL");
   const [upload, setUpload] = useState(false);
@@ -32,12 +33,16 @@ export default function DocumentsPage({ documentId }) {
     }
     confirm({
       title: "Xóa tài liệu?",
-      text: `“${item.name}” sẽ được xóa khỏi danh sách mẫu. Học liệu đã tạo vẫn được giữ lại.`,
+      text: `Xóa “${item.name}”? Học liệu đã tạo vẫn được giữ lại.`,
       label: "Xóa tài liệu",
-      action: () => {
+      action: async () => {
+        if (!isPreview) {
+          try { await apiRequest(`/documents/${item.id}`, { method: "DELETE" }); }
+          catch (error) { notify(error.message); return; }
+        }
         remove("documents", item.id);
         if (documentId) navigate("documents");
-        notify("Đã xóa tài liệu trong bản xem trước.");
+        notify(isPreview ? "Đã xóa tài liệu trong bản xem trước." : "Đã xóa tài liệu.");
       },
     });
   }
@@ -60,6 +65,18 @@ export default function DocumentsPage({ documentId }) {
     }
     setBusy(true);
     try {
+      if (!isPreview) {
+        for (const file of files) {
+          const body = new FormData();
+          body.append("file", file);
+          const result = await apiRequest("/documents", { method: "POST", body });
+          setData((old) => ({ ...old, documents: [result.document, ...old.documents] }));
+          setFiles((old) => old.filter((entry) => entry !== file));
+        }
+        setUpload(false);
+        notify("Đã tải lên và xử lý tài liệu.");
+        return;
+      }
       const newDocuments = await Promise.all(
         files.map(async (file) => ({
           id: id(),
@@ -81,12 +98,49 @@ export default function DocumentsPage({ documentId }) {
       setUpload(false);
       setFiles([]);
       notify("Đã thêm tài liệu vào bản xem trước; chưa tải lên máy chủ.");
-    } catch {
-      setError("Không thể đọc tệp. Vui lòng chọn lại.");
+    } catch (error) {
+      setError(error.message || "Không thể đọc tệp. Vui lòng chọn lại.");
     } finally {
       setBusy(false);
     }
   }
+  async function downloadDocument(item = document) {
+    if (isPreview) { downloadText(item.text, `${item.name}.txt`); return; }
+    try {
+      const blob = await apiRequest(`/documents/${item.id}/download`, { blob: true });
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url; anchor.download = item.name; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { notify(error.message); }
+  }
+  async function viewDocument(item) {
+    if (isPreview || item.type !== "PDF") {
+      navigate(`documents/${item.id}`);
+      return;
+    }
+    // Open synchronously from the click so browsers do not block the new tab.
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) { notify("Trình duyệt đã chặn tab mới. Hãy cho phép cửa sổ bật lên để xem PDF."); return; }
+    tab.opener = null;
+    tab.document.title = item.name;
+    tab.document.body.textContent = "Đang mở tài liệu PDF…";
+    try {
+      const file = await apiRequest(`/documents/${item.id}/download`, { blob: true });
+      if (tab.closed) return;
+      const url = URL.createObjectURL(new Blob([file], { type: "application/pdf" }));
+      tab.location.replace(url);
+      // Keep the blob alive for the viewer's print/download controls until closed.
+      const timer = setInterval(() => {
+        if (tab.closed) { URL.revokeObjectURL(url); clearInterval(timer); }
+      }, 1000);
+    } catch (error) {
+      tab.close();
+      notify(error.message);
+    }
+  }
+  if (documentsLoading) return <PageHeading title="Đang tải tài liệu…" />;
+  if (documentsError) return <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
   if (documentId)
     return document ? (
       <>
@@ -102,14 +156,17 @@ export default function DocumentsPage({ documentId }) {
           description={`${document.type} · ${document.size} · Thêm ngày ${dateLabel(document.date)}`}
           action={
             <>
+              {!isPreview && document.type === "PDF" && (
+                <Button variant="secondary" icon="eye" onClick={() => viewDocument(document)}>
+                  Xem PDF trong tab mới
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 icon="download"
-                onClick={() =>
-                  downloadText(document.text, `${document.name}.txt`)
-                }
+                onClick={() => downloadDocument()}
               >
-                Tải văn bản xem trước
+                {isPreview ? "Tải văn bản xem trước" : "Tải tệp gốc"}
               </Button>
               <Button
                 icon="spark"
@@ -127,7 +184,7 @@ export default function DocumentsPage({ documentId }) {
               <Badge tone="gray">VĂN BẢN XEM TRƯỚC</Badge>
               <Icon name="file" />
             </div>
-            <pre>{document.text}</pre>
+            <pre>{document.text || "Không tìm thấy văn bản trong tài liệu. Nếu đây là PDF dạng ảnh, hãy dùng bản PDF có văn bản hoặc chuyển sang DOCX/TXT."}</pre>
           </article>
           <aside className="ws-panel">
             <h2>Thông tin tài liệu</h2>
@@ -139,7 +196,7 @@ export default function DocumentsPage({ documentId }) {
               <dt>Trạng thái</dt>
               <dd>
                 <Badge tone={document.status === "READY" ? "green" : "orange"}>
-                  {document.status === "READY" ? "Sẵn sàng" : "Chờ xử lý"}
+                  {document.status === "READY" ? "Sẵn sàng" : document.status === "FAILED" ? "Không có văn bản đọc được" : "Chờ xử lý"}
                 </Badge>
               </dd>
               <dt>Học liệu liên quan</dt>
@@ -246,7 +303,7 @@ export default function DocumentsPage({ documentId }) {
                   <td>
                     <button
                       className="ws-table-name"
-                      onClick={() => navigate(`documents/${item.id}`)}
+                      onClick={() => viewDocument(item)}
                     >
                       <span
                         className={`ws-file-label ${item.type.toLowerCase()}`}
@@ -263,7 +320,7 @@ export default function DocumentsPage({ documentId }) {
                   <td>{dateLabel(item.date)}</td>
                   <td>
                     <Badge tone={item.status === "READY" ? "green" : "orange"}>
-                      {item.status === "READY" ? "Sẵn sàng" : "Chờ xử lý"}
+                      {item.status === "READY" ? "Sẵn sàng" : item.status === "FAILED" ? "Không có văn bản đọc được" : "Chờ xử lý"}
                     </Badge>
                   </td>
                   <td>
@@ -271,7 +328,7 @@ export default function DocumentsPage({ documentId }) {
                       <IconButton
                         icon="eye"
                         label={`Xem ${item.name}`}
-                        onClick={() => navigate(`documents/${item.id}`)}
+                        onClick={() => viewDocument(item)}
                       />
                       <IconButton
                         icon="spark"
@@ -279,6 +336,13 @@ export default function DocumentsPage({ documentId }) {
                         disabled={item.status !== "READY"}
                         onClick={() => navigate(`generate/${item.id}`)}
                       />
+                      {!isPreview && (
+                        <IconButton
+                          icon="download"
+                          label={`Tải xuống ${item.name}`}
+                          onClick={() => downloadDocument(item)}
+                        />
+                      )}
                       <IconButton
                         icon="trash"
                         label={`Xóa ${item.name}`}
@@ -303,8 +367,7 @@ export default function DocumentsPage({ documentId }) {
           onClose={() => !busy && setUpload(false)}
         >
           <p className="ws-muted">
-            Chọn tài liệu từ máy tính. Tệp sẽ chỉ được đọc trong trình duyệt ở
-            bản xem trước này.
+            {isPreview ? "Chọn tài liệu từ máy tính. Tệp chỉ được đọc trong trình duyệt ở bản xem trước này." : "Tải PDF, DOCX hoặc TXT lên để lưu và trích xuất nội dung. PDF dạng ảnh chưa hỗ trợ nhận diện chữ (OCR)."}
           </p>
           <input
             ref={fileInput}
@@ -352,7 +415,7 @@ export default function DocumentsPage({ documentId }) {
               Hủy
             </Button>
             <Button icon="upload" disabled={busy} onClick={addFiles}>
-              {busy ? "Đang đọc tệp…" : "Thêm vào bản xem trước"}
+              {busy ? "Đang xử lý…" : isPreview ? "Thêm vào bản xem trước" : "Tải tài liệu lên"}
             </Button>
           </div>
         </Modal>

@@ -10,7 +10,7 @@ const connectionString = process.env.TEST_DATABASE_URL ?? env.databaseUrl;
 const database = new pg.Pool({ connectionString, options: `-c search_path=${schema}`, connectionTimeoutMillis: 5000 });
 await database.query(`CREATE SCHEMA ${schema}`);
 await database.query(await readFile(new URL("../../database/init.sql", import.meta.url), "utf8"));
-const server = createApp({ authRepository: createAuthRepository(database) }).listen(env.port, "127.0.0.1");
+const server = createApp({ authRepository: createAuthRepository(database), documentDatabase: database }).listen(env.port, "127.0.0.1");
 const shutdown = () => server.close(async () => { await database.end(); process.exit(0); });
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);

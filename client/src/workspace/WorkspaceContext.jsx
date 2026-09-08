@@ -1,12 +1,26 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { initialData } from "./data.js";
 import { Button, Modal } from "./ui.jsx";
+import { apiRequest } from "../lib/api.js";
 
 const Context = createContext(null);
 export const useWorkspace = () => useContext(Context);
 
 export function WorkspaceProvider({ user, previewRole, children }) {
-  const [data, setData] = useState(() => initialData(user));
+  const [data, setData] = useState(() => ({ ...initialData(user), ...(!previewRole ? { documents: [] } : {}) }));
+  const [documentsLoading, setDocumentsLoading] = useState(!previewRole);
+  const [documentsError, setDocumentsError] = useState("");
+  async function reloadDocuments() {
+    if (previewRole) return;
+    setDocumentsLoading(true);
+    setDocumentsError("");
+    try {
+      const result = await apiRequest("/documents");
+      setData((old) => ({ ...old, documents: result.documents }));
+    } catch (error) { setDocumentsError(error.message); }
+    finally { setDocumentsLoading(false); }
+  }
+  useEffect(() => { reloadDocuments(); }, [user.userId, previewRole]);
   const ownerId = String(user.userId ?? user.id ?? "preview-user");
   const personalDocuments = data.documents.filter((item) => item.ownerId === ownerId);
   const sharedClasses = data.classes.filter((cls) => user.role === "TEACHER" || cls.joined);
@@ -40,6 +54,9 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     <Context.Provider
       value={{
         data,
+        documentsLoading,
+        documentsError,
+        reloadDocuments,
         ownerId,
         personalDocuments,
         classDocuments,

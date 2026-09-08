@@ -11,18 +11,19 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = "GET", body, token } = {}) {
+async function request(path, { method = "GET", body, token, blob = false } = {}) {
   let response;
   try {
     response = await fetch(`${apiUrl}${path}`, {
       method, credentials: "include", cache: "no-store",
       headers: {
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: body instanceof FormData ? body : JSON.stringify(body) } : {}),
     });
   } catch { throw new ApiError("Không thể kết nối máy chủ. Vui lòng kiểm tra kết nối và thử lại."); }
+  if (response.ok && blob) return response.blob();
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(data.message ?? "Không thể xử lý yêu cầu. Vui lòng thử lại.", response.status, data.errors);
   return data;

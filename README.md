@@ -95,6 +95,16 @@ Có thể đặt `PLAYWRIGHT_CHANNEL=chrome` nếu dùng Google Chrome. Báo cá
 
 Migration `database/migrations/001_auth.sql` bổ sung trạng thái tài khoản và mã phiên cho database đã có. Lệnh migrate có thể chạy lại và không xóa dữ liệu.
 
+## Tài liệu cá nhân với dữ liệu thật
+
+Đăng nhập tài khoản thật rồi mở **Tài liệu cá nhân**. Hệ thống hỗ trợ tải PDF/DOCX/TXT (tối đa 10 MB/tệp), trích xuất văn bản, tìm kiếm/lọc, xem nội dung, tải tệp gốc và xóa. Dữ liệu vẫn còn sau khi tải lại trang. PDF dạng ảnh chưa có OCR; tệp không có văn bản được đánh dấu thất bại và vẫn có thể tải xuống hoặc xóa. TXT dùng UTF-8.
+
+Với database đã có, chạy `npm run migrate --workspace server` trước khi khởi động ứng dụng. Migration `002_documents.sql` bổ sung `file_size` và `created_at`, có thể chạy lại và không xóa dữ liệu hiện có.
+
+Tệp gốc lưu ở `uploads/` tại thư mục gốc dự án (hoặc `UPLOAD_DIR`), tên lưu trữ ngẫu nhiên và không được phục vụ công khai. Cần sao lưu cả thư mục này và PostgreSQL. API `/api/documents` yêu cầu đăng nhập; danh sách, chi tiết, tải xuống và xóa đều kiểm tra người sở hữu. Xóa đánh dấu bản ghi `DELETED`, gỡ tệp gốc và giữ tham chiếu cho học liệu đã tạo. Tài liệu đang chia sẻ trong lớp phải gỡ liên kết trước khi xóa.
+
+Các phần tạo AI, lớp học và kết quả vẫn là giao diện mẫu. Nút đặt lại dữ liệu mẫu không xóa tài liệu thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
+
 ## Bản xem trước giao diện máy tính
 
 Chỉ cần chạy frontend, không cần Docker, API hoặc khóa DeepSeek:

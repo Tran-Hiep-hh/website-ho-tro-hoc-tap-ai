@@ -24,6 +24,7 @@ test("student documents stay personal and class files remain read-only", async (
 
 test("real-account navigation uses the auth API contract and protects signed-out pages", async ({ page }) => {
   let signedIn = false;
+  await page.route("**/api/documents", (route) => route.fulfill({ json: { success: true, documents: [] } }));
   const user = { userId: "123", fullName: "Nguyễn Minh An", email: "an@example.com", role: "TEACHER" };
   await page.route("**/api/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;

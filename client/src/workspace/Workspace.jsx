@@ -216,8 +216,7 @@ function Shell({ route, previewRole, onLogout }) {
         </header>
         <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">Bản xem trước</Badge> Dữ liệu học tập là dữ
-            liệu mẫu. Thao tác được giữ trong phiên xem này.
+            <Badge tone="orange">{previewRole ? "Bản xem trước" : "Đang phát triển"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu cá nhân đã lưu trên máy chủ. Các phần học liệu, lớp học và kết quả đang dùng dữ liệu mẫu."}
           </span>
           <div>
             {previewRole && (
@@ -239,7 +238,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData(initialData(user));
+                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents } : {}) }));
                     navigate("home");
                   },
                 })

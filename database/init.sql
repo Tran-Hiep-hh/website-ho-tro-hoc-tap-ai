@@ -26,6 +26,8 @@ CREATE TABLE source_documents (
     file_name VARCHAR(255) NOT NULL,
     file_type VARCHAR(10) NOT NULL CHECK (file_type IN ('PDF', 'DOCX', 'TXT')),
     storage_path VARCHAR(500) NOT NULL,
+    file_size BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     extracted_text TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'PROCESSING'
         CHECK (status IN ('PROCESSING', 'READY', 'FAILED', 'DELETED'))
