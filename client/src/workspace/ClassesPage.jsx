@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { apiRequest } from "../lib/api.js";
+import { viewDocument } from "../lib/documentViewer.js";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
@@ -26,20 +28,37 @@ export default function ClassesPage({ classId }) {
     notify,
     confirm,
     personalDocuments,
+    accessibleDocuments, isPreview, reloadClasses, classesLoading, classesError,
   } = useWorkspace();
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState(null);
   const [tab, setTab] = useState("materials");
   const [joinMatch, setJoinMatch] = useState(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function mutate(method, path, body = {}) {
+    setBusy(true); setError("");
+    try {
+      const result = await apiRequest(`/classes${path}`, { method, body });
+      await reloadClasses();
+      notify("Đã cập nhật lớp học.");
+      return result;
+    } catch (err) { setError(err.message); notify(err.message); return null; }
+    finally { setBusy(false); }
+  }
   const cls = data.classes.find(
     (item) => item.id === classId && (isTeacher || item.joined),
   );
   const requests = data.requests.filter((item) => item.classId === classId);
-  function saveClass(event) {
+  async function saveClass(event) {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
     if (!values.name.trim()) return;
+    if (!isPreview) {
+      const result = await mutate(modal === "edit" ? "PUT" : "POST", modal === "edit" ? `/${cls.id}` : "", values);
+      if (result) { setModal(null); if (result.id) navigate(`classes/${result.id}`); }
+      return;
+    }
     if (modal === "edit")
       update("classes", cls.id, { ...values, name: values.name.trim() });
     else {
@@ -60,6 +79,7 @@ export default function ClassesPage({ classId }) {
     notify("Đã lưu lớp trong bản xem trước.");
   }
   function processRequest(request, approve) {
+    if (!isPreview) return mutate("POST", `/${cls.id}/requests/${request.id}`, { approve });
     setData((old) => ({
       ...old,
       requests: old.requests.filter((item) => item.id !== request.id),
@@ -88,8 +108,12 @@ export default function ClassesPage({ classId }) {
     }
     confirm({
       title: isTeacher ? "Xóa lớp học?" : "Rời lớp học?",
-      text: "Thao tác này áp dụng cho dữ liệu mẫu trong phiên xem hiện tại.",
-      action: () => {
+      text: isTeacher ? "Thành viên sẽ không còn truy cập được lớp. Tài liệu gốc của bạn vẫn được giữ lại." : "Bạn sẽ mất quyền xem tài liệu lớp và cần xin tham gia lại nếu muốn quay lại.",
+      action: async () => {
+        if (!isPreview) {
+          if (await mutate(isTeacher ? "DELETE" : "POST", `/${cls.id}${isTeacher ? "" : "/leave"}`)) navigate("classes");
+          return;
+        }
         if (isTeacher) remove("classes", cls.id);
         else update("classes", cls.id, { joined: false });
         navigate("classes");
@@ -113,15 +137,27 @@ export default function ClassesPage({ classId }) {
         setError("");
       }}
     >
+      {error && modal !== "join" && <p className="ws-inline-error" role="alert">{error}</p>}
       {modal === "join" ? (
         <form
           className="ws-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const code = new FormData(event.currentTarget)
               .get("code")
               .trim()
               .toUpperCase();
+            if (!isPreview) {
+              setBusy(true); setError(""); setJoinMatch(null);
+              try {
+                const result = await apiRequest("/classes/lookup", { method: "POST", body: { code } });
+                const existing = data.classes.find((item) => item.id === result.classroom.id);
+                if (existing?.joined || existing?.pending) setError("Bạn đã tham gia hoặc đang chờ duyệt lớp này.");
+                else setJoinMatch(result.classroom);
+              } catch (err) { setError(err.message); }
+              finally { setBusy(false); }
+              return;
+            }
             const found = data.classes.find((item) => item.code === code);
             if (!found) {
               setError("Không tìm thấy lớp. Thử mã mẫu CTDL26.");
@@ -136,8 +172,7 @@ export default function ClassesPage({ classId }) {
           }}
         >
           <p className="ws-muted">
-            Nhập mã lớp do giáo viên cung cấp. Bạn có thể thử mã mẫu{" "}
-            <strong>CTDL26</strong>.
+            Nhập mã lớp do giáo viên cung cấp. {isPreview && <>Bạn có thể thử mã mẫu <strong>CTDL26</strong>.</>}
           </p>
           <Field label="Mã tham gia">
             <input
@@ -168,7 +203,12 @@ export default function ClassesPage({ classId }) {
             </Button>
             {joinMatch ? (
               <Button
-                onClick={() => {
+                disabled={busy}
+                onClick={async () => {
+                  if (!isPreview) {
+                    if (await mutate("POST", `/${joinMatch.id}/join`, { code: joinMatch.code })) { setModal(null); setJoinMatch(null); }
+                    return;
+                  }
                   update("classes", joinMatch.id, { pending: true });
                   setModal(null);
                   setJoinMatch(null);
@@ -180,17 +220,22 @@ export default function ClassesPage({ classId }) {
                 Gửi yêu cầu tham gia
               </Button>
             ) : (
-              <Button type="submit">Tìm lớp</Button>
+              <Button type="submit" disabled={busy}>Tìm lớp</Button>
             )}
           </div>
         </form>
       ) : modal === "share" ? (
         <form
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const selected = new FormData(event.currentTarget).getAll(
               "material",
             );
+            if (!selected.length) { setError("Chọn ít nhất một tài liệu chưa được chia sẻ."); return; }
+            if (!isPreview) {
+              if (await mutate("POST", `/${cls.id}/materials`, { documentIds: selected })) setModal(null);
+              return;
+            }
             update("classes", cls.id, {
               materialIds: [...new Set([...cls.materialIds, ...selected])],
             });
@@ -199,12 +244,11 @@ export default function ClassesPage({ classId }) {
           }}
         >
           <p className="ws-muted">
-            Chọn tài liệu, Flashcard hoặc Mindmap đã kiểm duyệt.
+            Chọn tài liệu PDF, DOCX hoặc TXT của bạn để chia sẻ cho lớp.
           </p>
           <div className="ws-checkbox-list">
             {[
-              ...personalDocuments.filter((item) => item.status === "READY"),
-              ...data.contents.filter((item) => item.type !== "QUIZ"),
+              ...personalDocuments.filter((item) => ["READY", "FAILED"].includes(item.status)),
             ].map((item) => (
               <label key={item.id}>
                 <input
@@ -228,7 +272,7 @@ export default function ClassesPage({ classId }) {
             <Button variant="secondary" onClick={() => setModal(null)}>
               Hủy
             </Button>
-            <Button type="submit">Chia sẻ học liệu</Button>
+            <Button type="submit" disabled={busy}>Chia sẻ học liệu</Button>
           </div>
         </form>
       ) : (
@@ -245,6 +289,7 @@ export default function ClassesPage({ classId }) {
           <Field label="Nhóm / Mã học phần">
             <input
               name="group"
+              maxLength={100}
               defaultValue={modal === "edit" ? cls.group : ""}
               required
               placeholder="Ví dụ: 67PM2"
@@ -265,7 +310,7 @@ export default function ClassesPage({ classId }) {
             <Button variant="secondary" onClick={() => setModal(null)}>
               Hủy
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={busy}>
               {modal === "edit" ? "Lưu thay đổi" : "Tạo lớp học"}
             </Button>
           </div>
@@ -273,6 +318,8 @@ export default function ClassesPage({ classId }) {
       )}
     </Modal>
   );
+  if (classesLoading) return <Empty title="Đang tải lớp học…" />;
+  if (classesError) return <Empty title="Không tải được lớp học" text={classesError} action={<Button onClick={reloadClasses}>Thử lại</Button>} />;
   if (classId && !cls)
     return (
       <Empty
@@ -282,7 +329,7 @@ export default function ClassesPage({ classId }) {
       />
     );
   if (cls) {
-    const materials = [...data.documents, ...data.contents].filter((item) =>
+    const materials = accessibleDocuments.filter((item) =>
       cls.materialIds.includes(item.id),
     );
     const members = data.members.filter(
@@ -329,6 +376,7 @@ export default function ClassesPage({ classId }) {
           </div>
         </div>
         <div className="ws-toolbar">
+          {!isPreview && <Button variant="secondary" disabled={busy} onClick={reloadClasses}>Làm mới</Button>}
           <Tabs
             items={[
               ["materials", "Học liệu"],
@@ -375,11 +423,7 @@ export default function ClassesPage({ classId }) {
                   </div>
                   <Button
                     variant="ghost"
-                    onClick={() =>
-                      navigate(
-                        `${item.name ? "documents" : "content"}/${item.id}`,
-                      )
-                    }
+                    onClick={() => viewDocument(item, { isPreview, navigate, notify })}
                   >
                     Xem học liệu
                   </Button>
@@ -392,7 +436,7 @@ export default function ClassesPage({ classId }) {
                           title: "Gỡ học liệu khỏi lớp?",
                           text: "Bản gốc vẫn được giữ trong tài liệu hoặc học liệu cá nhân.",
                           label: "Gỡ khỏi lớp",
-                          action: () =>
+                          action: () => !isPreview ? mutate("DELETE", `/${cls.id}/materials/${item.id}`) :
                             update("classes", cls.id, {
                               materialIds: cls.materialIds.filter(
                                 (key) => key !== item.id,
@@ -480,8 +524,8 @@ export default function ClassesPage({ classId }) {
                             onClick={() =>
                               confirm({
                                 title: "Xóa người học khỏi lớp?",
-                                text: `${item.name} sẽ không còn quyền truy cập lớp mẫu này.`,
-                                action: () => remove("members", item.id),
+                                text: `${item.name} sẽ không còn quyền truy cập lớp này.`,
+                                action: () => !isPreview ? mutate("DELETE", `/${cls.id}/members/${item.id}`) : remove("members", item.id),
                               })
                             }
                           />
@@ -506,12 +550,14 @@ export default function ClassesPage({ classId }) {
                   <Button
                     variant="secondary"
                     onClick={() => processRequest(item, false)}
+                    disabled={busy}
                   >
                     Từ chối
                   </Button>
                   <Button
                     icon="check"
                     onClick={() => processRequest(item, true)}
+                    disabled={busy}
                   >
                     Duyệt
                   </Button>
@@ -576,6 +622,7 @@ export default function ClassesPage({ classId }) {
         }
       />
       <div className="ws-toolbar">
+        {!isPreview && <Button variant="secondary" onClick={reloadClasses}>Làm mới</Button>}
         <Search
           value={query}
           onChange={setQuery}

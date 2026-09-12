@@ -9,7 +9,7 @@ export const useWorkspace = () => useContext(Context);
 export function WorkspaceProvider({ user, previewRole, children }) {
   const [data, setData] = useState(() => {
     const initial = initialData(user);
-    return previewRole ? initial : { ...initial, documents: [], contents: [] };
+    return previewRole ? initial : { ...initial, documents: [], contents: [], classes: [], members: [], requests: [], assignments: [], classAttempts: [], sharedDocuments: [] };
   });
   const [quizzesLoading, setQuizzesLoading] = useState(!previewRole);
   const [quizzesError, setQuizzesError] = useState("");
@@ -36,11 +36,23 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     finally { setDocumentsLoading(false); }
   }
   useEffect(() => { reloadDocuments(); }, [user.userId, previewRole]);
+  const [classesLoading, setClassesLoading] = useState(!previewRole);
+  const [classesError, setClassesError] = useState("");
+  async function reloadClasses() {
+    if (previewRole) return;
+    setClassesError("");
+    try {
+      const result = await apiRequest("/classes");
+      setData((old) => ({ ...old, classes: result.classes, members: result.members, requests: result.requests, sharedDocuments: result.documents }));
+    } catch (error) { setClassesError(error.message); }
+    finally { setClassesLoading(false); }
+  }
+  useEffect(() => { reloadClasses(); }, [user.userId, previewRole]);
   const ownerId = String(user.userId ?? user.id ?? "preview-user");
   const personalDocuments = data.documents.filter((item) => item.ownerId === ownerId);
   const sharedClasses = data.classes.filter((cls) => user.role === "TEACHER" || cls.joined);
-  const classDocuments = data.documents.filter((item) => sharedClasses.some((cls) => cls.materialIds.includes(item.id)));
-  const accessibleDocuments = data.documents.filter((item) => item.ownerId === ownerId || classDocuments.includes(item));
+  const classDocuments = previewRole ? data.documents.filter((item) => sharedClasses.some((cls) => cls.materialIds.includes(item.id))) : data.sharedDocuments;
+  const accessibleDocuments = [...new Map([...personalDocuments, ...classDocuments].map((item) => [item.id, item])).values()];
   const [toast, setToast] = useState("");
   const [confirmation, setConfirmation] = useState(null);
   const prefix = previewRole ? `/preview/${previewRole}/` : "/";
@@ -70,6 +82,9 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     <Context.Provider
       value={{
         data,
+        classesLoading,
+        classesError,
+        reloadClasses,
         quizzesLoading,
         quizzesError,
         reloadQuizzes,

@@ -101,9 +101,9 @@ Migration `database/migrations/001_auth.sql` bổ sung trạng thái tài khoả
 
 Với database đã có, chạy `npm run migrate --workspace server` trước khi khởi động ứng dụng. Migration `002_documents.sql` bổ sung `file_size` và `created_at`, có thể chạy lại và không xóa dữ liệu hiện có.
 
-Tệp gốc lưu ở `uploads/` tại thư mục gốc dự án (hoặc `UPLOAD_DIR`), tên lưu trữ ngẫu nhiên và không được phục vụ công khai. Cần sao lưu cả thư mục này và PostgreSQL. API `/api/documents` yêu cầu đăng nhập; danh sách, chi tiết, tải xuống và xóa đều kiểm tra người sở hữu. Xóa đánh dấu bản ghi `DELETED`, gỡ tệp gốc và giữ tham chiếu cho học liệu đã tạo. Tài liệu đang chia sẻ trong lớp phải gỡ liên kết trước khi xóa.
+Tệp gốc lưu ở `uploads/` tại thư mục gốc dự án (hoặc `UPLOAD_DIR`), tên lưu trữ ngẫu nhiên và không được phục vụ công khai. Cần sao lưu cả thư mục này và PostgreSQL. API `/api/documents` yêu cầu đăng nhập: danh sách chỉ chứa tài liệu tự tải lên, chỉ chủ sở hữu được xóa; thành viên đang hoạt động trong lớp được xem/tải tài liệu đã chia sẻ. Xóa đánh dấu bản ghi `DELETED`, gỡ tệp gốc và giữ tham chiếu cho học liệu đã tạo. Tài liệu đang chia sẻ trong lớp phải gỡ liên kết trước khi xóa.
 
-Nội dung tạo AI vẫn là giả lập; lớp học vẫn là giao diện mẫu. Tài liệu, học liệu và kết quả cá nhân đã lưu thật. Nút đặt lại dữ liệu mẫu không xóa tài liệu, học liệu hoặc tiến độ thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
+Nội dung tạo AI vẫn là giả lập. Tài liệu, học liệu, kết quả cá nhân và lớp học đã lưu thật. Nút đặt lại dữ liệu mẫu không xóa dữ liệu thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
 
 ## Quiz cá nhân với AI giả lập
 
@@ -119,13 +119,23 @@ Kiểm thử: `npm run test --workspace server` kiểm tra quyền sở hữu, p
 
 ## Flashcard và Mindmap lưu thật
 
-Đăng nhập thật → chọn tài liệu sẵn sàng → **Tạo học liệu** → chọn Flashcard hoặc Mindmap → xem kết quả giả lập → chỉnh sửa trước khi lưu → **Lưu vào thư viện**. Hai loại học liệu dùng API `/api/study-materials`, được lưu trong các bảng `generated_contents`, `content_sources`, `flashcards` và `mindmap_nodes`. Người dùng chỉ được tạo từ tài liệu của mình và xem/sửa/xóa học liệu do mình sở hữu. Học liệu đang chia sẻ phải gỡ khỏi lớp trước khi xóa.
+Đăng nhập thật → chọn tài liệu sẵn sàng → **Tạo học liệu** → chọn Flashcard hoặc Mindmap → xem kết quả giả lập → chỉnh sửa trước khi lưu → **Lưu vào thư viện**. Hai loại học liệu dùng API `/api/study-materials`, được lưu trong các bảng `generated_contents`, `content_sources`, `flashcards` và `mindmap_nodes`. Người dùng chỉ được tạo từ tài liệu của mình và xem/sửa/xóa học liệu do mình sở hữu. Flashcard và Mindmap dùng để tự ôn tập, không giao hoặc chia sẻ cho lớp.
 
 Migration `004_study_materials.sql` bổ sung `generated_contents.revision`, `flashcards.keyword` và bảng `flashcard_progress`. Lệnh migrate có thể chạy lại, không xóa dữ liệu cũ. Số phiên bản giúp chặn lưu đè từ trang đã cũ; khi gặp thông báo xung đột, tải lại trang rồi chỉnh sửa tiếp.
 
 Flashcard lưu trạng thái **Đã nhớ / Cần ôn lại** theo từng thẻ. Sửa mặt trước hoặc mặt sau của thẻ đặt lại tiến độ của riêng thẻ đó; đổi tên bộ thẻ, từ khóa hoặc thứ tự không làm mất tiến độ của thẻ không đổi. Khi xóa thẻ, tiến độ liên quan được xóa theo. Mindmap lưu đầy đủ nút và nút cha; kiểm tra một nút gốc, không vòng lặp, không nhánh mồ côi, tối đa 30 nút. Nhấn **Lưu Mindmap** sau chỉnh sửa; có thể xuất PNG hoặc in/lưu PDF.
 
 Chế độ tạo nội dung vẫn là **MOCK**, không gọi DeepSeek hoặc phân tích tài liệu/yêu cầu bổ sung. Flashcard dùng 6 thẻ minh họa (chọn 1–20; trên 6 sẽ lặp lại), Mindmap dùng cây mẫu tổng quan hoặc chi tiết. Tất cả nội dung đã lưu và tiến độ đều còn sau khi tải lại trang. Đường dẫn `/preview/` vẫn dùng dữ liệu trong bộ nhớ và không gọi API.
+
+## Lớp học với dữ liệu thật
+
+Giáo viên mở **Lớp học** để tạo/sửa/xóa lớp, sao chép mã tham gia, duyệt hoặc từ chối yêu cầu, quản lý thành viên và chia sẻ tài liệu PDF/DOCX/TXT của mình. Học sinh nhập mã, gửi yêu cầu và chờ duyệt. Nhấn **Làm mới** để nhận thay đổi từ tài khoản khác.
+
+Tài liệu lớp xuất hiện trong **Học liệu → Tài liệu lớp học**, không tự thêm vào tài liệu cá nhân của học sinh. PDF mở trong tab mới; DOCX/TXT có văn bản xem trước và tải nguyên tệp. Muốn dùng tài liệu lớp làm nguồn cá nhân, học sinh tải về rồi tự tải lên. Rời lớp, bị xóa khỏi lớp hoặc gỡ tài liệu sẽ thu hồi quyền truy cập từ máy chủ.
+
+API `/api/classes` kiểm tra vai trò và chủ lớp. Yêu cầu đang chờ không có quyền xem tài liệu hoặc danh sách thành viên. Các thao tác duyệt, chia sẻ, rời/xóa lớp dùng transaction; lớp đang có Quiz diễn ra không được xóa/rời hoặc xóa thành viên. Xóa lớp giữ tài liệu gốc và lịch sử database.
+
+Chạy `npm run migrate --workspace server`: migration `005_classes.sql` chỉ bổ sung trường `classrooms.group_name`, không xóa dữ liệu. Giao Quiz cho lớp và thông báo chưa nối API; giao Quiz chỉ thao tác mẫu trong đường dẫn `/preview/`.
 
 ## Bản xem trước giao diện máy tính
 

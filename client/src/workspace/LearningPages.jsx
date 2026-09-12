@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiRequest } from "../lib/api.js";
+import { viewDocument } from "../lib/documentViewer.js";
 import MindmapEditor from "./MindmapEditor.jsx";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
@@ -15,7 +16,7 @@ import {
 } from "./ui.jsx";
 
 export function LibraryPage() {
-  const { data, navigate, confirm, remove, notify, classDocuments, sharedClasses } = useWorkspace();
+  const { data, navigate, confirm, remove, notify, classDocuments, sharedClasses, isPreview, reloadClasses } = useWorkspace();
   const [type, setType] = useState("ALL");
   const [query, setQuery] = useState("");
   const items = data.contents.filter(
@@ -27,7 +28,7 @@ export function LibraryPage() {
   );
   function deleteContent(item) {
     if (
-      data.classes.some((cls) => cls.materialIds.includes(item.id)) ||
+      (isPreview && data.classes.some((cls) => cls.materialIds.includes(item.id))) ||
       data.assignments.some(
         (assignment) =>
           assignment.contentId === item.id && assignment.status !== "CANCELLED",
@@ -63,6 +64,7 @@ export function LibraryPage() {
         }
       />
       <div className="ws-toolbar">
+        {!isPreview && <Button variant="secondary" onClick={reloadClasses}>Làm mới</Button>}
         <Tabs
           items={[
             ["ALL", "Tất cả học liệu"],
@@ -93,7 +95,7 @@ export function LibraryPage() {
               <p>{sharedClasses.filter((cls) => cls.materialIds.includes(item.id)).map((cls) => cls.name).join(" · ")}</p>
               <div className="ws-card-footer">
                 <span className="ws-muted">{item.size}</span>
-                <Button variant="secondary" icon="eye" onClick={() => navigate(`documents/${item.id}`)}>Xem tài liệu</Button>
+                <Button variant="secondary" icon="eye" onClick={() => viewDocument(item, { isPreview, navigate, notify })}>Xem tài liệu</Button>
               </div>
             </div>
           </article>
@@ -167,7 +169,8 @@ export function LibraryPage() {
 }
 
 export function GeneratePage({ sourceId }) {
-  const { accessibleDocuments, setData, navigate, notify, isPreview } = useWorkspace();
+  const { accessibleDocuments: allDocuments, personalDocuments, setData, navigate, notify, isPreview } = useWorkspace();
+  const accessibleDocuments = isPreview ? allDocuments : personalDocuments;
   const [type, setType] = useState("QUIZ");
   const [sources, setSources] = useState(accessibleDocuments.some((item) => item.id === sourceId && item.status === "READY") ? [sourceId] : []);
   const [preview, setPreview] = useState(null);

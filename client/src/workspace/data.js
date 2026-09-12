@@ -197,7 +197,7 @@ export function initialData(user = {}) {
         color: "green",
         teacher: "Nguyễn Minh Anh",
         joined: true,
-        materialIds: ["doc-1", "flash-1", "map-1"],
+        materialIds: ["doc-1"],
       },
       {
         id: "class-2",

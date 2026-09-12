@@ -6,7 +6,7 @@ const schema = `auth_e2e_${randomUUID().replaceAll("-", "")}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["auth.spec.js", "documents.spec.js", "quizzes.spec.js", "study.spec.js"],
+  testMatch: ["auth.spec.js", "documents.spec.js", "quizzes.spec.js", "study.spec.js", "classes.spec.js"],
   fullyParallel: false,
   workers: 1,
   retries: 0,

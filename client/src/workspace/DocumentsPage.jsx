@@ -3,6 +3,7 @@ import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
 import { apiRequest } from "../lib/api.js";
+import { viewDocument as openDocument } from "../lib/documentViewer.js";
 import {
   Badge,
   Button,
@@ -27,7 +28,7 @@ export default function DocumentsPage({ documentId }) {
   const isOwner = document?.ownerId === ownerId;
   function deleteDocument(item) {
     if (item.ownerId !== ownerId) return;
-    if (data.classes.some((cls) => cls.materialIds.includes(item.id))) {
+    if (isPreview && data.classes.some((cls) => cls.materialIds.includes(item.id))) {
       notify("Hãy gỡ tài liệu khỏi lớp trước khi xóa.");
       return;
     }
@@ -114,31 +115,7 @@ export default function DocumentsPage({ documentId }) {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { notify(error.message); }
   }
-  async function viewDocument(item) {
-    if (isPreview || item.type !== "PDF") {
-      navigate(`documents/${item.id}`);
-      return;
-    }
-    // Open synchronously from the click so browsers do not block the new tab.
-    const tab = window.open("about:blank", "_blank");
-    if (!tab) { notify("Trình duyệt đã chặn tab mới. Hãy cho phép cửa sổ bật lên để xem PDF."); return; }
-    tab.opener = null;
-    tab.document.title = item.name;
-    tab.document.body.textContent = "Đang mở tài liệu PDF…";
-    try {
-      const file = await apiRequest(`/documents/${item.id}/download`, { blob: true });
-      if (tab.closed) return;
-      const url = URL.createObjectURL(new Blob([file], { type: "application/pdf" }));
-      tab.location.replace(url);
-      // Keep the blob alive for the viewer's print/download controls until closed.
-      const timer = setInterval(() => {
-        if (tab.closed) { URL.revokeObjectURL(url); clearInterval(timer); }
-      }, 1000);
-    } catch (error) {
-      tab.close();
-      notify(error.message);
-    }
-  }
+  const viewDocument = (item) => openDocument(item, { isPreview, navigate, notify });
   if (documentsLoading) return <PageHeading title="Đang tải tài liệu…" />;
   if (documentsError) return <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
   if (documentId)
@@ -168,13 +145,13 @@ export default function DocumentsPage({ documentId }) {
               >
                 {isPreview ? "Tải văn bản xem trước" : "Tải tệp gốc"}
               </Button>
-              <Button
+              {isOwner && <Button
                 icon="spark"
                 disabled={document.status !== "READY"}
                 onClick={() => navigate(`generate/${document.id}`)}
               >
                 Tạo học liệu
-              </Button>
+              </Button>}
             </>
           }
         />

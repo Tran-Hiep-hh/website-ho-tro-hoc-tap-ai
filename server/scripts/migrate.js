@@ -10,8 +10,9 @@ try {
     await client.query(await readFile(new URL("../../database/migrations/002_documents.sql", import.meta.url), "utf8"));
     await client.query(await readFile(new URL("../../database/migrations/003_quizzes.sql", import.meta.url), "utf8"));
     await client.query(await readFile(new URL("../../database/migrations/004_study_materials.sql", import.meta.url), "utf8"));
+    await client.query(await readFile(new URL("../../database/migrations/005_classes.sql", import.meta.url), "utf8"));
     await client.query("COMMIT");
-    console.log("Đã cập nhật cấu trúc xác thực, tài liệu và học liệu; dữ liệu hiện có được giữ nguyên.");
+    console.log("Đã cập nhật cấu trúc xác thực, tài liệu, học liệu và lớp học; dữ liệu hiện có được giữ nguyên.");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

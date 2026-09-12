@@ -29,7 +29,7 @@ const navigation = [
 ];
 
 function Shell({ route, previewRole, onLogout }) {
-  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments, quizzesLoading, quizzesError, reloadQuizzes, documentsLoading, documentsError, reloadDocuments } =
+  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments, quizzesLoading, quizzesError, reloadQuizzes, documentsLoading, documentsError, reloadDocuments, classesLoading, classesError, reloadClasses } =
     useWorkspace();
   const [pending, setPending] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -97,7 +97,7 @@ function Shell({ route, previewRole, onLogout }) {
   else if (section === "content")
     page = <ContentPage contentId={route.split("/")[1]} />;
   else if (section === "assignments")
-    page = <AssignmentsPage segments={route.split("/").slice(1)} />;
+    page = previewRole ? <AssignmentsPage segments={route.split("/").slice(1)} /> : <Empty title="Giao Quiz cho lớp đang được hoàn thiện" text="Bạn có thể quản lý lớp và chia sẻ tài liệu trong mục Lớp học." />;
   else if (section === "play")
     page = (
       <QuizPlayer mode={route.split("/")[1]} targetId={route.split("/")[2]} />
@@ -119,6 +119,10 @@ function Shell({ route, previewRole, onLogout }) {
   if (section === "generate") {
     if (documentsLoading) page = <Empty title="Đang tải tài liệu nguồn…" />;
     else if (documentsError) page = <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
+  }
+  if (section === "contents" || (section === "documents" && route.split("/")[1])) {
+    if (classesLoading) page = <Empty title="Đang tải tài liệu lớp…" />;
+    else if (classesError) page = <Empty title="Không tải được tài liệu lớp" text={classesError} action={<Button onClick={reloadClasses}>Thử lại</Button>} />;
   }
   return (
     <div className="ws-app">
@@ -224,7 +228,7 @@ function Shell({ route, previewRole, onLogout }) {
         </header>
         <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, Quiz, Flashcard, Mindmap và tiến độ đã lưu trên máy chủ. Nội dung AI đang giả lập; lớp học vẫn là bản mẫu."}
+            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, học liệu, tiến độ và lớp học được lưu trên máy chủ. AI đang giả lập; giao Quiz và thông báo đang được hoàn thiện."}
           </span>
           <div>
             {previewRole && (
@@ -246,7 +250,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts } : {}) }));
+                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts, classes: old.classes, members: old.members, requests: old.requests, sharedDocuments: old.sharedDocuments, assignments: [], classAttempts: [] } : {}) }));
                     navigate("home");
                   },
                 })

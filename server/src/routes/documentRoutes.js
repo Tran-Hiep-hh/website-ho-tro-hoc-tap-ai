@@ -38,9 +38,9 @@ export function createDocumentRouter({ database = pool, authRepository = createA
   router.use(requireAuth(createAuthService(authRepository)));
   router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.maxFileSizeMb * 1024 * 1024, files: 1, fields: 0 } }).single("file");
-  async function owned(req) {
+  async function owned(req, allowShared = false) {
     if (!/^[1-9]\d{0,18}$/.test(req.params.id) || BigInt(req.params.id) > 9223372036854775807n) throw missing();
-    const result = await database.query("SELECT * FROM source_documents WHERE document_id=$1 AND owner_id=$2 AND status <> 'DELETED'", [req.params.id, req.user.userId]);
+    const result = await database.query("SELECT d.* FROM source_documents d WHERE d.document_id=$1 AND d.status <> 'DELETED' AND (d.owner_id=$2 OR ($3::boolean AND EXISTS(SELECT 1 FROM class_materials cm JOIN classrooms c USING(class_id) JOIN class_memberships m USING(class_id) WHERE cm.document_id=d.document_id AND c.status='ACTIVE' AND m.student_id=$2 AND m.status='ACTIVE')))", [req.params.id, req.user.userId, allowShared]);
     if (!result.rows[0]) throw missing();
     return result.rows[0];
   }
@@ -71,9 +71,9 @@ export function createDocumentRouter({ database = pool, authRepository = createA
       res.status(201).json({ success: true, document: publicDocument(result.rows[0]) });
     } catch (error) { await unlink(target).catch(() => {}); throw error; }
   });
-  router.get("/:id", async (req, res) => res.json({ success: true, document: publicDocument(await owned(req)) }));
+  router.get("/:id", async (req, res) => res.json({ success: true, document: publicDocument(await owned(req, true)) }));
   router.get("/:id/download", async (req, res, next) => {
-    const row = await owned(req);
+    const row = await owned(req, true);
     if (path.basename(row.storage_path) !== row.storage_path) throw missing();
     res.download(row.storage_path, row.file_name, { root: storageRoot, dotfiles: "deny" }, (error) => {
       if (error && !res.headersSent) next(error.code === "ENOENT" ? missing() : error);
@@ -81,8 +81,18 @@ export function createDocumentRouter({ database = pool, authRepository = createA
   });
   router.delete("/:id", async (req, res) => {
     const row = await owned(req);
-    const result = await database.query("UPDATE source_documents SET status='DELETED', extracted_text=NULL WHERE document_id=$1 AND owner_id=$2 AND status <> 'DELETED' AND NOT EXISTS (SELECT 1 FROM class_materials WHERE document_id=$1) RETURNING document_id", [row.document_id, req.user.userId]);
-    if (!result.rowCount) throw httpError(409, "Hãy gỡ tài liệu khỏi lớp trước khi xóa.");
+    const db = await database.connect();
+    try {
+      await db.query("BEGIN");
+      // Serialize with class sharing before checking links in a fresh snapshot.
+      const locked = await db.query("SELECT document_id FROM source_documents WHERE document_id=$1 AND owner_id=$2 AND status <> 'DELETED' FOR UPDATE", [row.document_id, req.user.userId]);
+      if (!locked.rowCount) throw missing();
+      const links = await db.query("SELECT 1 FROM class_materials WHERE document_id=$1", [row.document_id]);
+      if (links.rowCount) throw httpError(409, "Hãy gỡ tài liệu khỏi lớp trước khi xóa.");
+      await db.query("UPDATE source_documents SET status='DELETED',extracted_text=NULL WHERE document_id=$1", [row.document_id]);
+      await db.query("COMMIT");
+    } catch (error) { await db.query("ROLLBACK"); throw error; }
+    finally { db.release(); }
     // Preserve the record for generated content references, remove the original file.
     if (path.basename(row.storage_path) === row.storage_path) {
       await unlink(path.join(storageRoot, row.storage_path)).catch((error) => {
