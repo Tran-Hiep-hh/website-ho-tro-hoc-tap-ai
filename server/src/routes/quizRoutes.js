@@ -118,7 +118,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
   router.delete("/:id", async (req, res) => {
     await transaction(async (db) => {
       const row = await owned(db, req.user.userId, req.params.id, true);
-      const links = await db.query("SELECT 1 FROM class_materials WHERE content_id=$1 UNION ALL SELECT 1 FROM quiz_assignments a JOIN quiz_versions v USING(quiz_version_id) WHERE v.quiz_id=$1 AND a.status='PUBLISHED'", [row.content_id]);
+      const links = await db.query("SELECT 1 FROM class_materials WHERE content_id=$1 UNION ALL SELECT 1 FROM quiz_assignments a JOIN quiz_versions v USING(quiz_version_id) WHERE v.quiz_id=$1 AND a.status IN ('DRAFT','PUBLISHED')", [row.content_id]);
       if (links.rowCount) throw httpError(409, "Gỡ Quiz khỏi lớp và bài giao trước khi xóa.");
       await db.query("UPDATE generated_contents SET status='DELETED' WHERE content_id=$1", [row.content_id]);
     });

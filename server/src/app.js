@@ -10,6 +10,7 @@ import { createDocumentRouter } from "./routes/documentRoutes.js";
 import { createQuizRouter } from "./routes/quizRoutes.js";
 import { createStudyRouter } from "./routes/studyRoutes.js";
 import { createClassRouter } from "./routes/classRoutes.js";
+import { createAssignmentRouter } from "./routes/assignmentRoutes.js";
 
 export function createApp({ authRepository, documentDatabase, documentStorageRoot } = {}) {
   const app = express();
@@ -30,6 +31,7 @@ export function createApp({ authRepository, documentDatabase, documentStorageRoo
   app.use("/api/quizzes", createQuizRouter({ authRepository, database: documentDatabase }));
   app.use("/api/study-materials", createStudyRouter({ authRepository, database: documentDatabase }));
   app.use("/api/classes", createClassRouter({ authRepository, database: documentDatabase }));
+  app.use("/api/assignments", createAssignmentRouter({ authRepository, database: documentDatabase }));
   app.use("/api", apiRouter);
 
   app.use(notFound);

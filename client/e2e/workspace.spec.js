@@ -67,6 +67,7 @@ test("real-account navigation uses the auth API contract and protects signed-out
   let signedIn = false;
   await page.route("**/api/study-materials", (route) => route.fulfill({ json: { success: true, contents: [] } }));
   await page.route("**/api/classes", (route) => route.fulfill({ json: { success: true, classes: [], members: [], requests: [], documents: [] } }));
+  await page.route("**/api/assignments", (route) => route.fulfill({ json: { success: true, assignments: [], attempts: [], classAttempts: [] } }));
   await page.route("**/api/quizzes", (route) => route.fulfill({ json: { success: true, contents: [] } }));
   await page.route("**/api/quizzes/attempts", (route) => route.fulfill({ json: { success: true, attempts: [] } }));
   await page.route("**/api/documents", (route) => route.fulfill({ json: { success: true, documents: [] } }));

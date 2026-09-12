@@ -124,7 +124,7 @@ CREATE TABLE join_requests (
     class_id BIGINT NOT NULL REFERENCES classrooms(class_id),
     student_id BIGINT NOT NULL REFERENCES users(user_id),
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
-        CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
+        CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'))
 );
 
 CREATE UNIQUE INDEX join_requests_one_pending
@@ -166,11 +166,12 @@ CREATE TABLE quiz_assignments (
     max_attempts INTEGER NOT NULL CHECK (max_attempts > 0),
     show_answers BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED'
-        CHECK (status IN ('PUBLISHED', 'CANCELLED')),
+        CHECK (status IN ('DRAFT', 'PUBLISHED', 'CANCELLED')),
     CHECK (due_at > start_at)
 );
 
 CREATE TABLE quiz_attempts (
+    answer_revision INTEGER NOT NULL DEFAULT 0,
     attempt_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(user_id),
     quiz_version_id BIGINT NOT NULL REFERENCES quiz_versions(quiz_version_id),

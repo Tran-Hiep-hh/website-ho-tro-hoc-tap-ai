@@ -15,8 +15,8 @@ import {
 } from "./ui.jsx";
 
 export default function ResultsPage({ segments = [] }) {
-  const { data, isTeacher, navigate, isPreview } = useWorkspace();
-  const [tab, setTab] = useState(isTeacher && isPreview ? "class" : "personal");
+  const { data, isTeacher, navigate, isPreview, reloadAssignments } = useWorkspace();
+  const [tab, setTab] = useState(isTeacher && (isPreview || segments[0] === "assignment") ? "class" : "personal");
   const initialAssignment = data.assignments.find(
     (item) => item.id === segments[1],
   );
@@ -38,7 +38,7 @@ export default function ResultsPage({ segments = [] }) {
     if (!result)
       return (
         <Empty
-          title="Kết quả không tồn tại trong phiên xem"
+          title="Không tìm thấy kết quả của bạn"
           action={
             <Button onClick={() => navigate("results")}>
               Về kết quả học tập
@@ -46,7 +46,7 @@ export default function ResultsPage({ segments = [] }) {
           }
         />
       );
-    const correct = result.questions.filter(
+    const correct = result.correctCount ?? result.questions.filter(
       (question, index) => question.answer === result.answers[index],
     ).length;
     return (
@@ -153,14 +153,16 @@ export default function ResultsPage({ segments = [] }) {
   const assignment = data.assignments.find(
     (item) => item.id === assignmentId && item.classId === classId,
   );
-  const members = data.members.filter((item) => item.classId === classId);
+  const activeMembers = data.members.filter((item) => item.classId === classId);
+  const formerMembers = [...new Map(data.classAttempts.filter((item) => item.assignmentId === assignmentId && !activeMembers.some((member) => (member.userId ?? member.id) === item.userId)).map((item) => [item.userId, { id: `former-${item.userId}`, userId: item.userId, name: item.name, email: item.email ?? "", departed: true }])).values()];
+  const members = [...activeMembers, ...formerMembers];
   const attempts = data.classAttempts.filter(
     (item) =>
       item.assignmentId === assignmentId &&
-      members.some((member) => member.id === item.userId),
+      members.some((member) => (member.userId ?? member.id) === item.userId),
   );
   const rows = members.map((member) => {
-    const entries = attempts.filter((item) => item.userId === member.id);
+    const entries = attempts.filter((item) => item.userId === (member.userId ?? member.id));
     return {
       ...member,
       entries,
@@ -202,12 +204,13 @@ export default function ResultsPage({ segments = [] }) {
     ];
     downloadText(
       `\uFEFF${entries.map((row) => row.map(escape).join(",")).join("\r\n")}`,
-      "ket-qua-lop-mau.csv",
+      isPreview ? "ket-qua-lop-mau.csv" : "ket-qua-lop.csv",
       "text/csv;charset=utf-8",
     );
   }
   return (
     <>
+      {!isPreview && <Button variant="secondary" onClick={reloadAssignments}>Làm mới</Button>}
       <PageHeading
         title="Kết quả học tập"
         description={
@@ -219,7 +222,7 @@ export default function ResultsPage({ segments = [] }) {
           isTeacher &&
           tab === "class" && (
             <Button variant="secondary" icon="download" onClick={exportCsv}>
-              Xuất CSV mẫu
+              {isPreview ? "Xuất CSV mẫu" : "Xuất CSV"}
             </Button>
           )
         }
@@ -280,7 +283,7 @@ export default function ResultsPage({ segments = [] }) {
             <>
               <div className="ws-stats-grid">
                 {[
-                  ["Người học trong lớp", members.length],
+                  [formerMembers.length ? "Người học hiện tại và đã rời lớp" : "Người học trong lớp", members.length],
                   ["Đã hoàn thành", `${completed.length}/${members.length}`],
                   [
                     "Tỷ lệ hoàn thành",
@@ -389,6 +392,7 @@ export default function ResultsPage({ segments = [] }) {
                           <td>
                             <strong>{row.name}</strong>
                             <small>{row.email}</small>
+                            {row.departed && <small>Đã rời lớp · Giữ lịch sử bài làm</small>}
                           </td>
                           <td>
                             <Badge tone={row.best ? "green" : "gray"}>
@@ -408,6 +412,7 @@ export default function ResultsPage({ segments = [] }) {
                                 Xem bài làm
                               </Button>
                             )}
+                            {row.entries.filter((entry) => entry.id !== row.best?.id).map((entry) => <Button key={entry.id} variant="ghost" onClick={() => navigate(`results/attempt/${entry.id}`)}>Lần {row.entries.indexOf(entry) + 1} · {scoreLabel(entry.score)}</Button>)}
                           </td>
                         </tr>
                       ))}
@@ -448,7 +453,7 @@ export default function ResultsPage({ segments = [] }) {
               <div className="ws-stat" key={label}>
                 <span className="ws-muted">{label}</span>
                 <strong>{value}</strong>
-                <small>{isPreview ? "Trong phiên xem hiện tại" : "Quiz cá nhân được lưu trên máy chủ"}</small>
+                <small>{isPreview ? "Trong phiên xem hiện tại" : "Kết quả được lưu trên máy chủ"}</small>
               </div>
             ))}
           </div>

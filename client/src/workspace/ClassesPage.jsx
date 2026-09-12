@@ -28,7 +28,7 @@ export default function ClassesPage({ classId }) {
     notify,
     confirm,
     personalDocuments,
-    accessibleDocuments, isPreview, reloadClasses, classesLoading, classesError,
+    accessibleDocuments, isPreview, reloadClasses, classesLoading, classesError, reloadAssignments,
   } = useWorkspace();
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState(null);
@@ -36,6 +36,22 @@ export default function ClassesPage({ classId }) {
   const [joinMatch, setJoinMatch] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  function cancelJoin(item) {
+    confirm({
+      title: "Hủy yêu cầu tham gia?",
+      text: `Hủy yêu cầu vào lớp “${item.name}”? Bạn vẫn có thể gửi yêu cầu lại bằng mã lớp.`,
+      label: "Hủy yêu cầu",
+      action: async () => {
+        if (isPreview) { update("classes", item.id, { pending: false }); notify("Đã hủy yêu cầu tham gia."); return; }
+        setBusy(true);
+        try {
+          await apiRequest(`/classes/${item.id}/requests/${item.pendingRequestId}`, { method: "DELETE", body: {} });
+          notify("Đã hủy yêu cầu tham gia. Bạn có thể gửi lại khi cần.");
+        } catch (err) { notify(err.message); }
+        finally { await reloadClasses(); setBusy(false); }
+      },
+    });
+  }
   async function mutate(method, path, body = {}) {
     setBusy(true); setError("");
     try {
@@ -376,7 +392,7 @@ export default function ClassesPage({ classId }) {
           </div>
         </div>
         <div className="ws-toolbar">
-          {!isPreview && <Button variant="secondary" disabled={busy} onClick={reloadClasses}>Làm mới</Button>}
+          {!isPreview && <Button variant="secondary" disabled={busy} onClick={() => { reloadClasses(); reloadAssignments(); }}>Làm mới</Button>}
           <Tabs
             items={[
               ["materials", "Học liệu"],
@@ -653,7 +669,10 @@ export default function ClassesPage({ classId }) {
               </div>
               <div className="ws-card-footer">
                 {item.pending && !isTeacher ? (
-                  <Badge tone="orange">Đang chờ duyệt</Badge>
+                  <>
+                    <Badge tone="orange">Đang chờ duyệt</Badge>
+                    <Button variant="secondary" disabled={busy} onClick={() => cancelJoin(item)}>Hủy yêu cầu</Button>
+                  </>
                 ) : (
                   <>
                     <Badge>Đang hoạt động</Badge>

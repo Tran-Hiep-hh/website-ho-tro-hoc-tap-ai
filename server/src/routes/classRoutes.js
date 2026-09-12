@@ -49,11 +49,13 @@ export function createClassRouter({ database = pool, authRepository = createAuth
       const { rows } = await db.query("SELECT c.*,u.full_name AS teacher, EXISTS(SELECT 1 FROM class_memberships m WHERE m.class_id=c.class_id AND m.student_id=$1 AND m.status='ACTIVE') AS joined, EXISTS(SELECT 1 FROM join_requests r WHERE r.class_id=c.class_id AND r.student_id=$1 AND r.status='PENDING') AS pending FROM classrooms c JOIN users u ON u.user_id=c.teacher_id WHERE c.status='ACTIVE' AND (c.teacher_id=$1 OR EXISTS(SELECT 1 FROM class_memberships m WHERE m.class_id=c.class_id AND m.student_id=$1 AND m.status='ACTIVE') OR EXISTS(SELECT 1 FROM join_requests r WHERE r.class_id=c.class_id AND r.student_id=$1 AND r.status='PENDING')) ORDER BY c.class_id DESC", [req.user.userId]);
       const accessible = rows.filter((row) => row.joined || String(row.teacher_id) === String(req.user.userId)).map((row) => row.class_id);
       const owned = rows.filter((row) => String(row.teacher_id) === String(req.user.userId)).map((row) => row.class_id);
+      const { rows: mine } = await db.query("SELECT class_id,request_id FROM join_requests WHERE student_id=$1 AND status='PENDING'", [req.user.userId]);
+      for (const row of rows) row.pendingRequestId = mine.find((request) => request.class_id === row.class_id)?.request_id ?? null;
       const { rows: members } = await db.query("SELECT m.*,u.full_name,u.email FROM class_memberships m JOIN users u ON u.user_id=m.student_id WHERE m.class_id=ANY($1::bigint[]) AND m.status='ACTIVE' ORDER BY m.membership_id", [accessible]);
       const { rows: requests } = await db.query("SELECT r.*,u.full_name,u.email FROM join_requests r JOIN users u ON u.user_id=r.student_id WHERE r.class_id=ANY($1::bigint[]) AND r.status='PENDING' ORDER BY r.request_id", [owned]);
       const { rows: links } = await db.query("SELECT cm.class_id,d.* FROM class_materials cm JOIN source_documents d USING(document_id) WHERE cm.class_id=ANY($1::bigint[]) AND d.status <> 'DELETED' ORDER BY cm.class_material_id", [accessible]);
       const docs = [...new Map(links.map((row) => [String(row.document_id), { id: String(row.document_id), ownerId: String(row.owner_id), name: row.file_name, type: row.file_type, size: `${(Number(row.file_size) / 1024).toFixed(1)} KB`, date: row.created_at, status: row.status, text: row.extracted_text ?? "" }])).values()];
-      return { classes: rows.map((row) => ({ ...basic(row), joined: row.joined || owned.includes(row.class_id), pending: row.pending && !row.joined, materialIds: links.filter((link) => link.class_id === row.class_id).map((link) => String(link.document_id)) })), members: members.map((row) => ({ id: String(row.membership_id), userId: String(row.student_id), classId: String(row.class_id), name: row.full_name, email: row.email })), requests: requests.map((row) => ({ id: String(row.request_id), userId: String(row.student_id), classId: String(row.class_id), name: row.full_name, email: row.email })), documents: docs };
+      return { classes: rows.map((row) => ({ ...basic(row), pendingRequestId: row.pendingRequestId === null ? null : String(row.pendingRequestId), joined: row.joined || owned.includes(row.class_id), pending: row.pending && !row.joined, materialIds: links.filter((link) => link.class_id === row.class_id).map((link) => String(link.document_id)) })), members: members.map((row) => ({ id: String(row.membership_id), userId: String(row.student_id), classId: String(row.class_id), name: row.full_name, email: row.email })), requests: requests.map((row) => ({ id: String(row.request_id), userId: String(row.student_id), classId: String(row.class_id), name: row.full_name, email: row.email })), documents: docs };
     });
     res.json({ success: true, ...result });
   });
@@ -93,6 +95,17 @@ export function createClassRouter({ database = pool, authRepository = createAuth
       await db.query("INSERT INTO join_requests(class_id,student_id) VALUES ($1,$2)", [cls.class_id, req.user.userId]);
     });
     res.status(201).json({ success: true });
+  });
+  router.delete("/:id/requests/:requestId", async (req, res) => {
+    role(req, "STUDENT");
+    if (!validId(req.params.requestId)) throw missing();
+    await transaction(async (db) => {
+      const cls = await classRow(db, req);
+      // Use the same class lock as approval; cancel only this user's exact pending request.
+      const result = await db.query("UPDATE join_requests SET status='CANCELLED' WHERE request_id=$1 AND class_id=$2 AND student_id=$3 AND status='PENDING'", [req.params.requestId, cls.class_id, req.user.userId]);
+      if (!result.rowCount) throw httpError(409, "Yêu cầu không còn chờ duyệt hoặc không thuộc về bạn. Danh sách lớp sẽ được cập nhật; nếu đã được duyệt, bạn có thể chọn rời lớp.");
+    });
+    res.json({ success: true });
   });
   router.post("/:id/requests/:requestId", async (req, res) => {
     if (!validId(req.params.requestId) || typeof req.body?.approve !== "boolean") throw httpError(400, "Yêu cầu duyệt không hợp lệ.");

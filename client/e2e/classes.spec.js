@@ -39,6 +39,18 @@ test("teacher creates and shares; student requests access, reads class files and
     await student.getByRole("button", { name: "Tìm lớp", exact: true }).click();
     await student.getByRole("button", { name: "Gửi yêu cầu tham gia", exact: true }).click();
     await expect(student.getByText("Đang chờ duyệt", { exact: true })).toBeVisible();
+    await student.getByRole("button", { name: "Hủy yêu cầu", exact: true }).click();
+    await student.getByRole("dialog").getByRole("button", { name: "Hủy yêu cầu", exact: true }).click();
+    await expect(student.getByText("Đang chờ duyệt", { exact: true })).toHaveCount(0);
+    await student.reload();
+    await expect(student.getByRole("heading", { name: "Chưa có lớp học phù hợp" })).toBeVisible();
+    await page.getByRole("button", { name: "Làm mới", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Yêu cầu (0)", exact: true })).toBeVisible();
+    await student.getByRole("button", { name: "Tham gia lớp", exact: true }).click();
+    await student.getByLabel("Mã tham gia").fill(code);
+    await student.getByRole("button", { name: "Tìm lớp", exact: true }).click();
+    await student.getByRole("button", { name: "Gửi yêu cầu tham gia", exact: true }).click();
+    await expect(student.getByText("Đang chờ duyệt", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Làm mới", exact: true }).click();
     await page.getByRole("button", { name: "Yêu cầu (1)", exact: true }).click();
     await page.getByRole("button", { name: "Duyệt", exact: true }).click();

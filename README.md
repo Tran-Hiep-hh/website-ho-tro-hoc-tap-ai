@@ -113,7 +113,7 @@ Chế độ hiện tại luôn là **MOCK**, dùng 5 câu hỏi minh họa về 
 
 API `/api/quizzes` yêu cầu đăng nhập và kiểm tra quyền sở hữu tài liệu nguồn/Quiz/lượt làm. Máy chủ chấm điểm từ đáp án của phiên bản đã bắt đầu; không nhận điểm do client tự tính. Điểm lưu theo tỷ lệ 0–100 để tương thích cấu trúc cũ, giao diện đổi sang thang 10 (60 → 6/10). Chỉnh sửa tạo phiên bản mới, giữ nguyên câu hỏi và kết quả của lượt làm cũ. Gửi lại yêu cầu nộp cùng lượt không tạo điểm hoặc câu trả lời trùng. Lựa chọn chưa nộp chỉ nằm trong trang hiện tại; tải lại trang cần chọn lại.
 
-Chạy `npm run migrate --workspace server` cho database đã có. Migration `003_quizzes.sql` bổ sung cấu hình tạo, ngày tạo, tiêu đề phiên bản và nhãn nguồn câu hỏi; giữ nguyên dữ liệu cũ. Xóa Quiz khỏi thư viện vẫn giữ lịch sử làm bài. Giao bài trong lớp hiện vẫn là giao diện mẫu.
+Chạy `npm run migrate --workspace server` cho database đã có. Migration `003_quizzes.sql` bổ sung cấu hình tạo, ngày tạo, tiêu đề phiên bản và nhãn nguồn câu hỏi; giữ nguyên dữ liệu cũ. Xóa Quiz khỏi thư viện vẫn giữ lịch sử làm bài. Quiz đang có bài giao nháp hoặc đã công bố phải gỡ bài giao trước khi xóa.
 
 Kiểm thử: `npm run test --workspace server` kiểm tra quyền sở hữu, phiên bản, chấm điểm và yêu cầu đồng thời; `npm run test:e2e --workspace client` kiểm tra luồng Quiz trên trình duyệt với PostgreSQL thật trong schema riêng.
 
@@ -135,7 +135,21 @@ Tài liệu lớp xuất hiện trong **Học liệu → Tài liệu lớp học
 
 API `/api/classes` kiểm tra vai trò và chủ lớp. Yêu cầu đang chờ không có quyền xem tài liệu hoặc danh sách thành viên. Các thao tác duyệt, chia sẻ, rời/xóa lớp dùng transaction; lớp đang có Quiz diễn ra không được xóa/rời hoặc xóa thành viên. Xóa lớp giữ tài liệu gốc và lịch sử database.
 
-Chạy `npm run migrate --workspace server`: migration `005_classes.sql` chỉ bổ sung trường `classrooms.group_name`, không xóa dữ liệu. Giao Quiz cho lớp và thông báo chưa nối API; giao Quiz chỉ thao tác mẫu trong đường dẫn `/preview/`.
+Chạy `npm run migrate --workspace server`: migration `005_classes.sql` chỉ bổ sung trường `classrooms.group_name`, không xóa dữ liệu. Thông báo vẫn là giao diện mẫu.
+
+Học sinh đang chờ duyệt có thể nhấn **Hủy yêu cầu** trên thẻ lớp và gửi lại bằng mã lớp khi cần. Chỉ hủy được yêu cầu của chính mình còn `PENDING`; nếu giáo viên đã duyệt thì danh sách được cập nhật để học sinh chọn rời lớp. Migration `007_cancel_join_request.sql` bổ sung trạng thái `CANCELLED` cho yêu cầu tham gia, giữ lịch sử và không thêm trường dữ liệu.
+
+## Giao Quiz và kết quả lớp học
+
+Giáo viên vào **Giao Quiz → Giao Quiz mới**, chọn Quiz đã lưu và lớp của mình, đặt lịch mở/hạn nộp, số lượt 1–10 và quyền xem đáp án sau nộp. Có thể lưu nháp, công bố hoặc hủy bài nháp/bài chưa mở. Phiên bản câu hỏi được cố định ngay khi tạo bài giao (kể cả bản nháp); sửa Quiz gốc không làm thay đổi bài đã giao. Không hủy bài đã bắt đầu; muốn thay đổi nội dung cần tạo bài giao mới.
+
+Học sinh đã được duyệt vào lớp mới được bắt đầu Quiz trong thời gian cho phép. Bắt đầu lại sẽ tiếp tục lượt đang làm, không tốn thêm lượt. Mỗi lựa chọn được lưu vào database; chờ thông báo lưu xong trước khi đóng trang. Tải lại trang và bấm **Bắt đầu Quiz** để khôi phục câu trả lời. Hai tab cùng sửa được kiểm tra số phiên bản, không ghi đè âm thầm.
+
+Máy chủ chấm theo đáp án của phiên bản đã giao và hiển thị điểm thang 10. API không gửi đáp án/giải thích khi đang làm, và chỉ trả đáp án sau nộp nếu giáo viên cho phép. Khi hết hạn, chỉ chấm các lựa chọn đã lưu, không nhận câu trả lời mới. Nếu đóng trình duyệt, bài hết hạn được hoàn tất khi học sinh hoặc giáo viên tải danh sách bài giao/kết quả; hiện chưa có tác vụ chạy nền. Nộp lại cùng lượt không tạo kết quả trùng.
+
+Giáo viên mở **Xem kết quả** để xem người đã hoàn thành/chưa làm, điểm cao nhất, trung bình, chi tiết từng lượt và xuất CSV. Lịch sử học sinh đã rời lớp vẫn được giữ. Nhấn **Làm mới** để nhận bài nộp từ tài khoản khác.
+
+API `/api/assignments` dùng xác thực và phân quyền theo chủ lớp/thành viên. Migration `006_assignments.sql` bổ sung trạng thái bài giao `DRAFT` và `quiz_attempts.answer_revision` để kiểm tra xung đột khi lưu; giữ dữ liệu hiện có. Không cần DeepSeek API để chạy luồng này.
 
 ## Bản xem trước giao diện máy tính
 

@@ -1,5 +1,6 @@
 import { scoreLabel } from "./score.js";
 import { useState } from "react";
+import { apiRequest } from "../lib/api.js";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
@@ -28,19 +29,27 @@ const inputDate = (value) => {
 };
 
 export default function AssignmentsPage({ segments = [] }) {
-  const { data, setData, isTeacher, navigate, notify, update, confirm } =
+  const { data, setData, isTeacher, navigate, notify, update, confirm, isPreview, reloadAssignments } =
     useWorkspace();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [status, setStatus] = useState("PUBLISHED");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function changeStatus(value) {
+    if (isPreview) { update("assignments", assignment.id, { status: value }); return; }
+    setBusy(true);
+    try { await apiRequest(`/assignments/${assignment.id}/status`, { method: "POST", body: { status: value } }); await reloadAssignments(); notify("Đã cập nhật bài giao."); }
+    catch (err) { notify(err.message); }
+    finally { setBusy(false); }
+  }
   const creating = segments[0] === "new";
   const assignment = data.assignments.find((item) => item.id === segments[0]);
   const availableClasses = data.classes.filter(
     (item) => isTeacher || item.joined,
   );
   const quizzes = data.contents.filter((item) => item.type === "QUIZ");
-  function createAssignment(event) {
+  async function createAssignment(event) {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
     if (new Date(values.dueAt) <= new Date(values.startAt)) {
@@ -48,6 +57,15 @@ export default function AssignmentsPage({ segments = [] }) {
       return;
     }
     const quiz = quizzes.find((item) => item.id === values.contentId);
+    if (!isPreview) {
+      setBusy(true); setError("");
+      try {
+        const result = await apiRequest("/assignments", { method: "POST", body: { ...values, versionId: quiz.versionId, startAt: new Date(values.startAt).toISOString(), dueAt: new Date(values.dueAt).toISOString(), maxAttempts: Number(values.maxAttempts), showAnswers: values.showAnswers === "on", status } });
+        await reloadAssignments(); navigate(`assignments/${result.id}`); notify("Đã lưu bài giao trên máy chủ.");
+      } catch (err) { setError(err.message); }
+      finally { setBusy(false); }
+      return;
+    }
     const next = {
       ...values,
       id: id(),
@@ -202,7 +220,7 @@ export default function AssignmentsPage({ segments = [] }) {
           </label>
           <div className="ws-info-banner">
             <Icon name="lock" size={18} />
-            <p>Bài giao giữ nguyên phiên bản câu hỏi tại thời điểm công bố.</p>
+            <p>Bài giao giữ nguyên phiên bản câu hỏi khi tạo, kể cả khi lưu nháp.</p>
           </div>
           {error && (
             <p className="ws-inline-error" role="alert">
@@ -213,7 +231,7 @@ export default function AssignmentsPage({ segments = [] }) {
             <Button variant="secondary" onClick={() => navigate("assignments")}>
               Hủy
             </Button>
-            <Button type="submit" icon="check">
+            <Button type="submit" icon="check" disabled={busy}>
               {status === "DRAFT" ? "Lưu bản nháp" : "Công bố Quiz"}
             </Button>
           </div>
@@ -234,9 +252,10 @@ export default function AssignmentsPage({ segments = [] }) {
       (item) => item.assignmentId === assignment.id,
     );
     const canStart =
-      label === "Đang mở" && attempts.length < assignment.maxAttempts;
+      label === "Đang mở" && (assignment.inProgress || (assignment.attemptsUsed ?? attempts.length) < assignment.maxAttempts);
     return (
       <>
+        {!isPreview && <Button variant="secondary" onClick={reloadAssignments}>Làm mới</Button>}
         <Button
           variant="ghost"
           icon="back"
@@ -257,7 +276,7 @@ export default function AssignmentsPage({ segments = [] }) {
             <h2>Thông tin bài Quiz</h2>
             <dl className="ws-detail-list">
               <dt>Số câu hỏi</dt>
-              <dd>{assignment.questions.length} câu trắc nghiệm</dd>
+              <dd>{assignment.questionCount ?? assignment.questions.length} câu trắc nghiệm</dd>
               <dt>Thời gian mở</dt>
               <dd>{new Date(assignment.startAt).toLocaleString("vi-VN")}</dd>
               <dt>Hạn nộp</dt>
@@ -281,15 +300,13 @@ export default function AssignmentsPage({ segments = [] }) {
                 </Button>
                 {assignment.status === "DRAFT" && (
                   <Button
+                    disabled={busy}
                     onClick={() =>
                       confirm({
                         title: "Công bố bài giao?",
-                        text: "Xác nhận bạn đã kiểm duyệt Quiz và muốn công bố cho lớp mẫu.",
+                        text: "Xác nhận bạn đã kiểm duyệt Quiz và muốn công bố cho lớp.",
                         label: "Công bố",
-                        action: () =>
-                          update("assignments", assignment.id, {
-                            status: "PUBLISHED",
-                          }),
+                        action: () => changeStatus("PUBLISHED"),
                       })
                     }
                   >
@@ -301,14 +318,12 @@ export default function AssignmentsPage({ segments = [] }) {
                     new Date(assignment.startAt) > new Date()) && (
                     <Button
                       variant="danger"
+                      disabled={busy}
                       onClick={() =>
                         confirm({
                           title: "Hủy bài giao?",
-                          text: "Người học sẽ không thể bắt đầu bài Quiz mẫu này.",
-                          action: () =>
-                            update("assignments", assignment.id, {
-                              status: "CANCELLED",
-                            }),
+                          text: "Người học sẽ không thể bắt đầu bài Quiz này.",
+                          action: () => changeStatus("CANCELLED"),
                         })
                       }
                     >
@@ -319,7 +334,7 @@ export default function AssignmentsPage({ segments = [] }) {
             ) : (
               <>
                 <p className="ws-muted">
-                  Bạn đã sử dụng {attempts.length}/{assignment.maxAttempts} lượt
+                  Bạn đã sử dụng {assignment.attemptsUsed ?? attempts.length}/{assignment.maxAttempts} lượt
                   làm.
                 </p>
                 <div className="ws-page-bottom">
@@ -329,8 +344,8 @@ export default function AssignmentsPage({ segments = [] }) {
                     onClick={() => navigate(`play/assignment/${assignment.id}`)}
                   >
                     {canStart
-                      ? "Bắt đầu làm bài"
-                      : attempts.length >= assignment.maxAttempts
+                      ? assignment.inProgress ? "Tiếp tục làm bài" : "Bắt đầu làm bài"
+                      : (assignment.attemptsUsed ?? attempts.length) >= assignment.maxAttempts
                         ? "Đã hết lượt làm"
                         : label}
                   </Button>
@@ -342,11 +357,11 @@ export default function AssignmentsPage({ segments = [] }) {
             <h2>{isTeacher ? "Lưu ý khi giao bài" : "Trước khi bắt đầu"}</h2>
             <ul className="ws-guidelines">
               <li>Mỗi câu hỏi có một đáp án đúng.</li>
-              <li>Câu trả lời được giữ trong phiên xem trước.</li>
-              <li>Bài đang làm sẽ được tự nộp khi đến hạn nộp.</li>
-              <li>Kết quả ở đây là kết quả mẫu trong trình duyệt.</li>
+              <li>{isPreview ? "Câu trả lời được giữ trong phiên xem trước." : "Mỗi lựa chọn được lưu trên máy chủ. Chờ lưu xong trước khi đóng trang."}</li>
+              <li>Khi hết hạn, bài được chấm từ các câu trả lời đã lưu; không nhận thay đổi sau hạn.</li>
+              <li>{isPreview ? "Kết quả ở đây là kết quả mẫu trong trình duyệt." : "Điểm được chấm trên máy chủ và hiển thị theo thang 10."}</li>
             </ul>
-            <h2>Lịch sử làm trong phiên xem</h2>
+            <h2>Lịch sử làm bài</h2>
             {attempts.length ? (
               attempts.map((item, index) => (
                 <div className="ws-resource-row" key={item.id}>
@@ -405,6 +420,7 @@ export default function AssignmentsPage({ segments = [] }) {
       />
       <section className="ws-panel">
         <div className="ws-toolbar">
+          {!isPreview && <Button variant="secondary" onClick={reloadAssignments}>Làm mới</Button>}
           <Tabs
             items={[
               ["ALL", "Tất cả"],
@@ -442,7 +458,7 @@ export default function AssignmentsPage({ segments = [] }) {
                   <td>
                     <strong>{item.title}</strong>
                     <small>
-                      {item.questions.length} câu hỏi · {item.maxAttempts} lượt
+                      {item.questionCount ?? item.questions.length} câu hỏi · {item.maxAttempts} lượt
                       làm
                     </small>
                   </td>

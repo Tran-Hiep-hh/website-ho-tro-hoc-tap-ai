@@ -18,7 +18,7 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     setQuizzesLoading(true); setQuizzesError("");
     try {
       const [library, history, study] = await Promise.all([apiRequest("/quizzes"), apiRequest("/quizzes/attempts"), apiRequest("/study-materials")]);
-      setData((old) => ({ ...old, contents: [...library.contents, ...study.contents], learned: Object.fromEntries(study.contents.filter((item) => item.type === "FLASHCARD").map((item) => [item.id, item.learned])), attempts: history.attempts }));
+      setData((old) => ({ ...old, contents: [...library.contents, ...study.contents], learned: Object.fromEntries(study.contents.filter((item) => item.type === "FLASHCARD").map((item) => [item.id, item.learned])), attempts: [...history.attempts, ...old.attempts.filter((item) => item.assignmentId)] }));
     } catch (error) { setQuizzesError(error.message); }
     finally { setQuizzesLoading(false); }
   }
@@ -48,6 +48,18 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     finally { setClassesLoading(false); }
   }
   useEffect(() => { reloadClasses(); }, [user.userId, previewRole]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(!previewRole);
+  const [assignmentsError, setAssignmentsError] = useState("");
+  async function reloadAssignments() {
+    if (previewRole) return;
+    setAssignmentsError("");
+    try {
+      const result = await apiRequest("/assignments");
+      setData((old) => ({ ...old, assignments: result.assignments, classAttempts: result.classAttempts, attempts: [...old.attempts.filter((item) => !item.assignmentId), ...result.attempts] }));
+    } catch (error) { setAssignmentsError(error.message); }
+    finally { setAssignmentsLoading(false); }
+  }
+  useEffect(() => { reloadAssignments(); }, [user.userId, previewRole]);
   const ownerId = String(user.userId ?? user.id ?? "preview-user");
   const personalDocuments = data.documents.filter((item) => item.ownerId === ownerId);
   const sharedClasses = data.classes.filter((cls) => user.role === "TEACHER" || cls.joined);
@@ -82,6 +94,7 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     <Context.Provider
       value={{
         data,
+        assignmentsLoading, assignmentsError, reloadAssignments,
         classesLoading,
         classesError,
         reloadClasses,

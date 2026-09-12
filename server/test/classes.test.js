@@ -18,6 +18,8 @@ before(async () => {
   await database.query(await readFile(new URL("../../database/init.sql", import.meta.url), "utf8"));
   const migration = await readFile(new URL("../../database/migrations/005_classes.sql", import.meta.url), "utf8");
   await database.query(migration); await database.query(migration);
+  const cancellationMigration = await readFile(new URL("../../database/migrations/007_cancel_join_request.sql", import.meta.url), "utf8");
+  await database.query(cancellationMigration); await database.query(cancellationMigration);
   storage = await mkdtemp(path.join(tmpdir(), "study-classes-test-"));
   server = createApp({ authRepository: createAuthRepository(database), documentDatabase: database, documentStorageRoot: storage }).listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -125,4 +127,35 @@ test("Active class quizzes block leaving, removing members and deleting the clas
   await database.query("UPDATE quiz_assignments SET status='CANCELLED' WHERE class_id=$1", [cls.id]);
   assert.equal((await call(`/classes/${cls.id}/leave`, "POST", {}, 2)).status, 200);
   assert.equal((await call(`/classes/${cls.id}`, "DELETE", {})).status, 200);
+});
+test("Students cancel only their own pending request, retain history and may reapply", async () => {
+  const cls = await classroom();
+  await call(`/classes/${cls.id}/join`, "POST", { code: cls.code }, 2);
+  const pending = (await call("/classes", "GET", undefined, 2)).classes.find((item) => item.id === cls.id);
+  const route = `/classes/${cls.id}/requests/${pending.pendingRequestId}`;
+  assert.ok(pending.pendingRequestId);
+  assert.equal((await call(route, "DELETE", {}, 0)).status, 403);
+  assert.equal((await call(route, "DELETE", {}, 3)).status, 409);
+  assert.equal((await call(route, "DELETE", {}, 2)).status, 200);
+  assert.equal((await database.query("SELECT status FROM join_requests WHERE request_id=$1", [pending.pendingRequestId])).rows[0].status, "CANCELLED");
+  assert.ok(!(await call("/classes", "GET", undefined, 2)).classes.some((item) => item.id === cls.id));
+  assert.ok(!(await call("/classes")).requests.some((item) => item.id === pending.pendingRequestId));
+  assert.equal((await call(`/classes/${cls.id}/join`, "POST", { code: cls.code }, 2)).status, 201);
+  const newer = (await call("/classes", "GET", undefined, 2)).classes.find((item) => item.id === cls.id);
+  assert.notEqual(newer.pendingRequestId, pending.pendingRequestId);
+  assert.equal((await call(route, "DELETE", {}, 2)).status, 409);
+  assert.equal((await call(`/classes/${cls.id}/requests/${newer.pendingRequestId}`, "POST", { approve: true })).status, 200);
+  assert.equal((await call(`/classes/${cls.id}/requests/${newer.pendingRequestId}`, "DELETE", {}, 2)).status, 409);
+  assert.equal((await call("/classes", "GET", undefined, 2)).classes.find((item) => item.id === cls.id).joined, true);
+});
+test("Concurrent approval and cancellation cannot both succeed", async () => {
+  const cls = await classroom();
+  await call(`/classes/${cls.id}/join`, "POST", { code: cls.code }, 3);
+  const request = (await call("/classes")).requests.find((item) => item.classId === cls.id);
+  const route = `/classes/${cls.id}/requests/${request.id}`;
+  const results = await Promise.all([call(route, "DELETE", {}, 3), call(route, "POST", { approve: true })]);
+  assert.deepEqual(results.map((item) => item.status).sort(), [200, 409]);
+  const state = (await database.query("SELECT status FROM join_requests WHERE request_id=$1", [request.id])).rows[0].status;
+  const members = await database.query("SELECT 1 FROM class_memberships WHERE class_id=$1 AND student_id=$2 AND status='ACTIVE'", [cls.id, accounts[3].user.userId]);
+  assert.equal(members.rowCount, state === "APPROVED" ? 1 : 0);
 });

@@ -11,6 +11,8 @@ try {
     await client.query(await readFile(new URL("../../database/migrations/003_quizzes.sql", import.meta.url), "utf8"));
     await client.query(await readFile(new URL("../../database/migrations/004_study_materials.sql", import.meta.url), "utf8"));
     await client.query(await readFile(new URL("../../database/migrations/005_classes.sql", import.meta.url), "utf8"));
+    await client.query(await readFile(new URL("../../database/migrations/006_assignments.sql", import.meta.url), "utf8"));
+    await client.query(await readFile(new URL("../../database/migrations/007_cancel_join_request.sql", import.meta.url), "utf8"));
     await client.query("COMMIT");
     console.log("Đã cập nhật cấu trúc xác thực, tài liệu, học liệu và lớp học; dữ liệu hiện có được giữ nguyên.");
   } catch (error) {

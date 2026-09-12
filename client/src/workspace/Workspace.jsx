@@ -29,7 +29,7 @@ const navigation = [
 ];
 
 function Shell({ route, previewRole, onLogout }) {
-  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments, quizzesLoading, quizzesError, reloadQuizzes, documentsLoading, documentsError, reloadDocuments, classesLoading, classesError, reloadClasses } =
+  const { data, setData, user, isTeacher, href, navigate, notify, confirm, accessibleDocuments, quizzesLoading, quizzesError, reloadQuizzes, documentsLoading, documentsError, reloadDocuments, classesLoading, classesError, reloadClasses, assignmentsLoading, assignmentsError, reloadAssignments } =
     useWorkspace();
   const [pending, setPending] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -97,7 +97,7 @@ function Shell({ route, previewRole, onLogout }) {
   else if (section === "content")
     page = <ContentPage contentId={route.split("/")[1]} />;
   else if (section === "assignments")
-    page = previewRole ? <AssignmentsPage segments={route.split("/").slice(1)} /> : <Empty title="Giao Quiz cho lớp đang được hoàn thiện" text="Bạn có thể quản lý lớp và chia sẻ tài liệu trong mục Lớp học." />;
+    page = <AssignmentsPage segments={route.split("/").slice(1)} />;
   else if (section === "play")
     page = (
       <QuizPlayer mode={route.split("/")[1]} targetId={route.split("/")[2]} />
@@ -112,7 +112,7 @@ function Shell({ route, previewRole, onLogout }) {
         action={<Button onClick={() => navigate("home")}>Về tổng quan</Button>}
       />
     );
-  if (["contents", "content", "play", "results"].includes(section)) {
+  if (["contents", "content", "play", "results", "assignments"].includes(section)) {
     if (quizzesLoading) page = <Empty title="Đang tải học liệu và kết quả…" />;
     else if (quizzesError) page = <Empty title="Không tải được học liệu" text={quizzesError} action={<Button onClick={reloadQuizzes}>Thử lại</Button>} />;
   }
@@ -120,9 +120,13 @@ function Shell({ route, previewRole, onLogout }) {
     if (documentsLoading) page = <Empty title="Đang tải tài liệu nguồn…" />;
     else if (documentsError) page = <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
   }
-  if (section === "contents" || (section === "documents" && route.split("/")[1])) {
+  if (["contents", "assignments", "results"].includes(section) || (section === "documents" && route.split("/")[1])) {
     if (classesLoading) page = <Empty title="Đang tải tài liệu lớp…" />;
     else if (classesError) page = <Empty title="Không tải được tài liệu lớp" text={classesError} action={<Button onClick={reloadClasses}>Thử lại</Button>} />;
+  }
+  if (["assignments", "results", "classes"].includes(section) || (section === "play" && route.split("/")[1] === "assignment")) {
+    if (assignmentsLoading) page = <Empty title="Đang tải bài giao và kết quả…" />;
+    else if (assignmentsError) page = <Empty title="Không tải được bài giao" text={assignmentsError} action={<Button onClick={reloadAssignments}>Thử lại</Button>} />;
   }
   return (
     <div className="ws-app">
@@ -228,7 +232,7 @@ function Shell({ route, previewRole, onLogout }) {
         </header>
         <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, học liệu, tiến độ và lớp học được lưu trên máy chủ. AI đang giả lập; giao Quiz và thông báo đang được hoàn thiện."}
+            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, học liệu, lớp học, bài giao và kết quả được lưu trên máy chủ. AI đang giả lập; thông báo đang được hoàn thiện."}
           </span>
           <div>
             {previewRole && (
@@ -250,7 +254,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts, classes: old.classes, members: old.members, requests: old.requests, sharedDocuments: old.sharedDocuments, assignments: [], classAttempts: [] } : {}) }));
+                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts, classes: old.classes, members: old.members, requests: old.requests, sharedDocuments: old.sharedDocuments, assignments: old.assignments, classAttempts: old.classAttempts } : {}) }));
                     navigate("home");
                   },
                 })
