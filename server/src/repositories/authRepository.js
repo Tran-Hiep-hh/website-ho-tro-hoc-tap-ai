@@ -14,11 +14,35 @@ export function createAuthRepository(database = pool) {
       );
       return rows[0];
     },
-    async createSession({ userId, sessionId, tokenHash, expiresAt }) {
-      await database.query(
-        `INSERT INTO refresh_tokens (user_id, session_id, token_hash, expires_at)
-         VALUES ($1, $2, $3, $4)`, [userId, sessionId, tokenHash, expiresAt],
-      );
+    async createSession({ userId, sessionId, tokenHash, expiresAt, passwordHash }) {
+      const db = await database.connect();
+      try {
+        await db.query("BEGIN");
+        const user = await db.query("SELECT user_id FROM users WHERE user_id=$1 AND password_hash=$2 AND status='ACTIVE' FOR UPDATE", [userId, passwordHash]);
+        if (!user.rowCount) { await db.query("ROLLBACK"); return false; }
+        await db.query("INSERT INTO refresh_tokens(user_id,session_id,token_hash,expires_at) VALUES ($1,$2,$3,$4)", [userId, sessionId, tokenHash, expiresAt]);
+        await db.query("COMMIT"); return true;
+      } catch (error) { await db.query("ROLLBACK"); throw error; }
+      finally { db.release(); }
+    },
+    async updateProfile(userId, fullName) {
+      const { rows } = await database.query("UPDATE users SET full_name=$2 WHERE user_id=$1 AND status='ACTIVE' RETURNING *", [userId, fullName]);
+      return rows[0];
+    },
+    async findUserById(userId) {
+      const { rows } = await database.query("SELECT * FROM users WHERE user_id=$1", [userId]);
+      return rows[0];
+    },
+    async changePassword(userId, oldHash, newHash) {
+      const db = await database.connect();
+      try {
+        await db.query("BEGIN");
+        const result = await db.query("UPDATE users SET password_hash=$3 WHERE user_id=$1 AND password_hash=$2 AND status='ACTIVE' RETURNING user_id", [userId, oldHash, newHash]);
+        if (!result.rowCount) { await db.query("ROLLBACK"); return false; }
+        await db.query("UPDATE refresh_tokens SET is_revoked=TRUE WHERE user_id=$1", [userId]);
+        await db.query("COMMIT"); return true;
+      } catch (error) { await db.query("ROLLBACK"); throw error; }
+      finally { db.release(); }
     },
     async rotateSession({ userId, sessionId, oldHash, tokenHash, expiresAt }) {
       // A single conditional UPDATE lets only one request consume a refresh token.

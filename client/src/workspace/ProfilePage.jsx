@@ -1,18 +1,29 @@
 import { useState } from "react";
+import { apiRequest, changePassword } from "../lib/api.js";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { Badge, Button, Field, PageHeading, Tabs } from "./ui.jsx";
 import { Icon } from "../components/Brand.jsx";
 
 export default function ProfilePage() {
-  const { user, data, setData, isTeacher, notify } = useWorkspace();
+  const { user, data, setData, isTeacher, notify, isPreview, onUserChange } = useWorkspace();
   const [tab, setTab] = useState("profile");
   const [error, setError] = useState("");
-  const profile = data.profile ?? user;
-  function saveProfile(event) {
+  const [busy, setBusy] = useState(false);
+  const profile = isPreview ? data.profile ?? user : user;
+  async function saveProfile(event) {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
     if (values.fullName.trim().length < 2) {
       setError("Họ tên cần ít nhất 2 ký tự.");
+      return;
+    }
+    if (!isPreview) {
+      setBusy(true); setError("");
+      try {
+        const result = await apiRequest("/auth/profile", { method: "PUT", body: { fullName: values.fullName } });
+        onUserChange(result.user); notify("Đã lưu thông tin cá nhân.");
+      } catch (err) { setError(err.message); }
+      finally { setBusy(false); }
       return;
     }
     setData((old) => ({
@@ -22,7 +33,7 @@ export default function ProfilePage() {
     setError("");
     notify("Đã lưu hồ sơ trong bản xem trước. Tài khoản thật chưa thay đổi.");
   }
-  function passwordPreview(event) {
+  async function passwordPreview(event) {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
     if (values.newPassword !== values.confirmPassword) {
@@ -31,6 +42,13 @@ export default function ProfilePage() {
     }
     if (values.newPassword === values.currentPassword) {
       setError("Mật khẩu mới cần khác mật khẩu hiện tại.");
+      return;
+    }
+    if (!isPreview) {
+      setBusy(true); setError("");
+      try { await changePassword(values); }
+      catch (err) { setError(err.message); }
+      finally { setBusy(false); }
       return;
     }
     setError("");
@@ -70,6 +88,7 @@ export default function ProfilePage() {
             ]}
             value={tab}
             onChange={(value) => {
+              if (busy) return;
               setTab(value);
               setError("");
             }}
@@ -97,6 +116,7 @@ export default function ProfilePage() {
               <Field label="Địa chỉ email">
                 <input
                   name="email"
+                  readOnly={!isPreview}
                   type="email"
                   defaultValue={profile.email}
                   maxLength={255}
@@ -107,8 +127,8 @@ export default function ProfilePage() {
                 <input readOnly value={isTeacher ? "Giáo viên" : "Người học"} />
               </Field>
               <div className="ws-form-footer">
-                <span>Các thay đổi chỉ áp dụng trong bản xem trước.</span>
-                <Button type="submit" icon="check">
+                <span>{isPreview ? "Các thay đổi chỉ áp dụng trong bản xem trước." : "Email và vai trò không thể tự thay đổi."}</span>
+                <Button type="submit" icon="check" disabled={busy}>
                   Lưu thông tin
                 </Button>
               </div>
@@ -117,7 +137,7 @@ export default function ProfilePage() {
             <form onSubmit={passwordPreview} className="ws-form" key="security">
               <h2>Đổi mật khẩu</h2>
               <p className="ws-muted">
-                Thiết lập mật khẩu mới với ít nhất 8 ký tự.
+                Thiết lập mật khẩu mới với ít nhất 8 ký tự, tối đa 72 byte.
               </p>
               <Field label="Mật khẩu hiện tại">
                 <input
@@ -146,9 +166,9 @@ export default function ProfilePage() {
                 />
               </Field>
               <div className="ws-form-footer">
-                <span>Kiểm tra biểu mẫu; chưa đổi mật khẩu thật.</span>
-                <Button type="submit" icon="lock">
-                  Kiểm tra biểu mẫu
+                <span>{isPreview ? "Kiểm tra biểu mẫu; chưa đổi mật khẩu thật." : "Sau khi đổi, tất cả phiên đăng nhập sẽ bị thu hồi. Bạn cần đăng nhập lại."}</span>
+                <Button type="submit" icon="lock" disabled={busy}>
+                  {busy ? "Đang lưu…" : isPreview ? "Kiểm tra biểu mẫu" : "Đổi mật khẩu"}
                 </Button>
               </div>
             </form>

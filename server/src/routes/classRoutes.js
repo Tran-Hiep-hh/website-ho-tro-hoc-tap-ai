@@ -5,6 +5,7 @@ import { createAuthRepository } from "../repositories/authRepository.js";
 import { createAuthService } from "../services/authService.js";
 import { requireAuth, protectAuthMutation, authRateLimit } from "../middlewares/auth.js";
 import { httpError } from "../utils/httpError.js";
+import { notifyUser, notifyClass } from "../services/notificationService.js";
 
 const validId = (id) => /^[1-9]\d{0,18}$/.test(String(id)) && BigInt(id) <= 9223372036854775807n;
 const missing = () => httpError(404, "Lớp không tồn tại hoặc bạn không có quyền truy cập.");
@@ -93,6 +94,7 @@ export function createClassRouter({ database = pool, authRepository = createAuth
       const existing = await db.query("SELECT 1 FROM class_memberships WHERE class_id=$1 AND student_id=$2 AND status='ACTIVE' UNION ALL SELECT 1 FROM join_requests WHERE class_id=$1 AND student_id=$2 AND status='PENDING'", [cls.class_id, req.user.userId]);
       if (existing.rowCount) throw httpError(409, "Bạn đã tham gia hoặc đang chờ duyệt lớp này.");
       await db.query("INSERT INTO join_requests(class_id,student_id) VALUES ($1,$2)", [cls.class_id, req.user.userId]);
+      await notifyUser(db, cls.teacher_id, "Yêu cầu tham gia lớp mới", `${req.user.fullName} muốn tham gia lớp ${cls.class_name}.`, `classes/${cls.class_id}/requests`);
     });
     res.status(201).json({ success: true });
   });
@@ -115,6 +117,7 @@ export function createClassRouter({ database = pool, authRepository = createAuth
       if (!rows[0]) throw httpError(409, "Yêu cầu đã được xử lý hoặc không thuộc lớp.");
       await db.query("UPDATE join_requests SET status=$2 WHERE request_id=$1", [rows[0].request_id, req.body.approve ? "APPROVED" : "REJECTED"]);
       if (req.body.approve) await db.query("INSERT INTO class_memberships(class_id,student_id,status) VALUES ($1,$2,'ACTIVE') ON CONFLICT(class_id,student_id) DO UPDATE SET status='ACTIVE'", [cls.class_id, rows[0].student_id]);
+      await notifyUser(db, rows[0].student_id, req.body.approve ? "Yêu cầu tham gia được duyệt" : "Yêu cầu tham gia bị từ chối", `Giáo viên đã ${req.body.approve ? "duyệt" : "từ chối"} yêu cầu vào lớp ${cls.class_name}.`, req.body.approve ? `classes/${cls.class_id}` : "classes");
     });
     res.json({ success: true });
   });
@@ -142,7 +145,12 @@ export function createClassRouter({ database = pool, authRepository = createAuth
       const unique = [...new Set(ids.map(String))];
       const docs = await db.query("SELECT document_id FROM source_documents WHERE document_id=ANY($1::bigint[]) AND owner_id=$2 AND status IN ('READY','FAILED') FOR UPDATE", [unique, req.user.userId]);
       if (docs.rowCount !== unique.length) throw httpError(400, "Chỉ chia sẻ tài liệu của bạn đã được xử lý và chưa xóa.");
-      for (const id of unique) await db.query("INSERT INTO class_materials(class_id,document_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [cls.class_id, id]);
+      let added = 0;
+      for (const id of unique) {
+        const result = await db.query("INSERT INTO class_materials(class_id,document_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [cls.class_id, id]);
+        added += result.rowCount;
+      }
+      if (added) await notifyClass(db, cls.class_id, "Tài liệu mới trong lớp", `${cls.class_name}: giáo viên đã chia sẻ ${added} tài liệu mới.`, `classes/${cls.class_id}`, "file");
     }); res.json({ success: true });
   });
   router.delete("/:id/materials/:documentId", async (req, res) => {

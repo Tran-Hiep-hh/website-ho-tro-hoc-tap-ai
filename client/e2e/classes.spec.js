@@ -52,11 +52,20 @@ test("teacher creates and shares; student requests access, reads class files and
     await student.getByRole("button", { name: "Gửi yêu cầu tham gia", exact: true }).click();
     await expect(student.getByText("Đang chờ duyệt", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Làm mới", exact: true }).click();
-    await page.getByRole("button", { name: "Yêu cầu (1)", exact: true }).click();
+    await page.goto("http://localhost:5175/#/notifications");
+    await page.getByRole("button", { name: "Làm mới", exact: true }).click();
+    await page.locator(".ws-notification").filter({ hasText: "Yêu cầu tham gia lớp mới" }).first().click();
+    await expect(page).toHaveURL(/\/requests$/);
     await page.getByRole("button", { name: "Duyệt", exact: true }).click();
     await expect(page.getByRole("button", { name: "Yêu cầu (0)", exact: true })).toBeVisible();
+    await student.goto("http://localhost:5175/#/notifications");
+    await student.getByRole("button", { name: "Làm mới", exact: true }).click();
+    await student.locator(".ws-notification").filter({ hasText: "Yêu cầu tham gia được duyệt" }).click();
+    await expect(student).toHaveURL(/#\/classes\/\d+$/);
+    await student.goto("http://localhost:5175/#/notifications");
     await student.reload();
-    await student.getByRole("button", { name: "Vào lớp", exact: true }).click();
+    await expect(student.locator(".ws-notification.unread")).toHaveCount(0);
+    await student.locator(".ws-notification").filter({ hasText: "Yêu cầu tham gia được duyệt" }).click();
     await student.getByRole("button", { name: "Xem học liệu", exact: true }).click();
     await expect(student.locator("pre")).toHaveText("Tài liệu do giáo viên chia sẻ.");
     await expect(student.getByRole("button", { name: "Tạo học liệu", exact: true })).toHaveCount(0);
@@ -83,5 +92,10 @@ test("teacher creates and shares; student requests access, reads class files and
     await page.getByRole("button", { name: "Xóa Tài liệu lớp.txt", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();
+    await page.goto("http://localhost:5175/#/notifications");
+    await page.getByRole("button", { name: "Đánh dấu tất cả đã đọc", exact: true }).click();
+    await expect(page.locator(".ws-notification.unread")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Đánh dấu tất cả đã đọc", exact: true })).toBeDisabled();
   } finally { await studentContext.close(); }
 });

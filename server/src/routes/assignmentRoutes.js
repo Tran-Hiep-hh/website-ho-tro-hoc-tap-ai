@@ -4,6 +4,7 @@ import { createAuthRepository } from "../repositories/authRepository.js";
 import { createAuthService } from "../services/authService.js";
 import { requireAuth, protectAuthMutation } from "../middlewares/auth.js";
 import { httpError } from "../utils/httpError.js";
+import { notifyClass } from "../services/notificationService.js";
 
 const validId = (value) => /^[1-9]\d{0,18}$/.test(String(value)) && BigInt(value) <= 9223372036854775807n;
 const missing = () => httpError(404, "Không tìm thấy bài giao hoặc bạn không có quyền truy cập.");
@@ -104,6 +105,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       const items = await questions(db, b.versionId);
       if (!items.length || items.some((q) => q.options.length !== 4 || q.answer < 0)) throw httpError(400, "Quiz chưa có câu hỏi hợp lệ.");
       const { rows } = await db.query("INSERT INTO quiz_assignments(class_id,quiz_version_id,title,start_at,due_at,max_attempts,show_answers,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING assignment_id", [b.classId, b.versionId, b.title.trim(), start, due, b.maxAttempts, b.showAnswers, b.status]);
+      if (b.status === "PUBLISHED") await notifyClass(db, b.classId, "Quiz mới được giao", b.title.trim(), `assignments/${rows[0].assignment_id}`, "quiz");
       return String(rows[0].assignment_id);
     }); res.status(201).json({ success: true, id });
   });
@@ -112,6 +114,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       const a = await access(db, req, req.params.id, true), next = req.body?.status;
       if (next === "PUBLISHED" && a.status === "DRAFT" && new Date(a.due_at).getTime() > Date.now()) {
         await db.query("UPDATE quiz_assignments SET status='PUBLISHED' WHERE assignment_id=$1", [a.assignment_id]);
+        await notifyClass(db, a.class_id, "Quiz mới được giao", a.title, `assignments/${a.assignment_id}`, "quiz");
       } else if (next === "CANCELLED" && (a.status === "DRAFT" || (a.status === "PUBLISHED" && new Date(a.start_at).getTime() > Date.now()))) {
         await db.query("UPDATE quiz_assignments SET status='CANCELLED' WHERE assignment_id=$1", [a.assignment_id]);
       } else throw httpError(409, "Không thể đổi trạng thái. Chỉ hủy bài nháp hoặc bài chưa mở; không công bố bài đã hết hạn.");

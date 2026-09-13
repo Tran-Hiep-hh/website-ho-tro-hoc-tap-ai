@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { initialData } from "./data.js";
 import { Button, Modal } from "./ui.jsx";
 import { apiRequest } from "../lib/api.js";
@@ -6,10 +6,10 @@ import { apiRequest } from "../lib/api.js";
 const Context = createContext(null);
 export const useWorkspace = () => useContext(Context);
 
-export function WorkspaceProvider({ user, previewRole, children }) {
+export function WorkspaceProvider({ user, previewRole, children, onUserChange }) {
   const [data, setData] = useState(() => {
     const initial = initialData(user);
-    return previewRole ? initial : { ...initial, documents: [], contents: [], classes: [], members: [], requests: [], assignments: [], classAttempts: [], sharedDocuments: [] };
+    return previewRole ? initial : { ...initial, notifications: [], documents: [], contents: [], classes: [], members: [], requests: [], assignments: [], classAttempts: [], sharedDocuments: [] };
   });
   const [quizzesLoading, setQuizzesLoading] = useState(!previewRole);
   const [quizzesError, setQuizzesError] = useState("");
@@ -60,6 +60,28 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     finally { setAssignmentsLoading(false); }
   }
   useEffect(() => { reloadAssignments(); }, [user.userId, previewRole]);
+  const [notificationsLoading, setNotificationsLoading] = useState(!previewRole);
+  const [notificationsError, setNotificationsError] = useState("");
+  const notificationSequence = useRef(0);
+  async function reloadNotifications() {
+    if (previewRole) return;
+    const sequence = ++notificationSequence.current;
+    try {
+      const result = await apiRequest("/notifications");
+      if (sequence !== notificationSequence.current) return;
+      setData((old) => ({ ...old, notifications: result.notifications }));
+      setNotificationsError("");
+    } catch (error) { if (sequence === notificationSequence.current) setNotificationsError(error.message); }
+    finally { if (sequence === notificationSequence.current) setNotificationsLoading(false); }
+  }
+  useEffect(() => {
+    if (previewRole) return;
+    reloadNotifications();
+    const refresh = () => { if (document.visibilityState === "visible") reloadNotifications(); };
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); ++notificationSequence.current; };
+  }, [user.userId, previewRole]);
   const ownerId = String(user.userId ?? user.id ?? "preview-user");
   const personalDocuments = data.documents.filter((item) => item.ownerId === ownerId);
   const sharedClasses = data.classes.filter((cls) => user.role === "TEACHER" || cls.joined);
@@ -94,6 +116,7 @@ export function WorkspaceProvider({ user, previewRole, children }) {
     <Context.Provider
       value={{
         data,
+        notificationsLoading, notificationsError, reloadNotifications,
         assignmentsLoading, assignmentsError, reloadAssignments,
         classesLoading,
         classesError,
@@ -111,6 +134,7 @@ export function WorkspaceProvider({ user, previewRole, children }) {
         sharedClasses,
         setData,
         user,
+        onUserChange,
         isTeacher: user.role === "TEACHER",
         isPreview: Boolean(previewRole),
         href,

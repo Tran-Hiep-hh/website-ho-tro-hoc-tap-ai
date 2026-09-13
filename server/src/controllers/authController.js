@@ -36,5 +36,13 @@ export function createAuthController(service) {
     me(request, response) {
       response.json({ success: true, user: request.user });
     },
+    async updateProfile(request, response) {
+      response.json({ success: true, user: await service.updateProfile(request.user.userId, request.body) });
+    },
+    async changePassword(request, response) {
+      await service.changePassword(request.user.userId, request.body);
+      response.clearCookie(cookieName, cookieOptions);
+      response.json({ success: true, message: "Đã đổi mật khẩu. Vui lòng đăng nhập lại trên các thiết bị." });
+    },
   };
 }

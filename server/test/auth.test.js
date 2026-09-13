@@ -173,6 +173,43 @@ test("rejects cross-origin mutations, form posts and malformed JSON", async () =
   assert.equal((await call("/logout", { cookie: "study_ai_refresh=%invalid" })).status, 200);
 });
 
+test("Profile updates only the authenticated user's name and preserves email and role", async () => {
+  const { input, user } = await account();
+  const session = await signIn(input);
+  assert.equal((await call("/profile", { method: "PUT", body: { fullName: "Tên mới" } })).status, 401);
+  for (const body of [{ fullName: " " }, { fullName: "a".repeat(101) }, { fullName: "Tên\0mới" }, { fullName: "Tên mới", role: "TEACHER" }, { fullName: "Tên mới", email: "other@example.com" }]) assert.equal((await call("/profile", { method: "PUT", token: session.data.accessToken, body })).status, 400);
+  const result = await call("/profile", { method: "PUT", token: session.data.accessToken, body: { fullName: "  Trần   Minh Anh  " } });
+  assert.equal(result.status, 200); assert.equal(result.data.user.fullName, "Trần Minh Anh");
+  assert.equal(result.data.user.userId, user.userId); assert.equal(result.data.user.role, user.role); assert.equal(result.data.user.email, user.email);
+  assert.equal((await call("/me", { method: "GET", token: session.data.accessToken })).data.user.fullName, "Trần Minh Anh");
+  assert.equal((await call("/refresh", { cookie: session.cookie })).data.user.fullName, "Trần Minh Anh");
+});
+test("Password change validates credentials, hashes the new password and revokes every session", async () => {
+  const { input, user } = await account();
+  const first = await signIn(input), second = await signIn(input);
+  const oldHash = (await database.query("SELECT password_hash FROM users WHERE user_id=$1", [user.userId])).rows[0].password_hash;
+  const body = { currentPassword: password, newPassword: "Changed-password-456", confirmPassword: "Changed-password-456" };
+  for (const invalid of [{ currentPassword: "incorrect" }, { newPassword: "short", confirmPassword: "short" }, { newPassword: "😀".repeat(19), confirmPassword: "😀".repeat(19) }, { confirmPassword: "mismatch" }, { newPassword: password, confirmPassword: password }]) assert.equal((await call("/password", { token: first.data.accessToken, body: { ...body, ...invalid } })).status, 400);
+  assert.equal((await call("/me", { method: "GET", token: first.data.accessToken })).status, 200);
+  const changed = await call("/password", { token: first.data.accessToken, body });
+  assert.equal(changed.status, 200); assert.match(changed.headers.get("set-cookie"), /study_ai_refresh=;/);
+  const hash = (await database.query("SELECT password_hash FROM users WHERE user_id=$1", [user.userId])).rows[0].password_hash;
+  assert.notEqual(hash, body.newPassword); assert.ok(await bcrypt.compare(body.newPassword, hash));
+  for (const session of [first, second]) {
+    assert.equal((await call("/me", { method: "GET", token: session.data.accessToken })).status, 401);
+    assert.equal((await call("/refresh", { cookie: session.cookie })).status, 401);
+  }
+  assert.equal(await createAuthRepository(database).createSession({ userId: user.userId, passwordHash: oldHash, sessionId: randomUUID(), tokenHash: "0".repeat(64), expiresAt: new Date(Date.now() + 60000) }), false);
+  assert.equal((await signIn(input)).status, 401);
+  assert.equal((await signIn({ ...input, password: body.newPassword })).status, 200);
+});
+test("Concurrent password changes cannot both commit", async () => {
+  const { input } = await account();
+  const session = await signIn(input);
+  const results = await Promise.all(["New-password-one", "New-password-two"].map((next) => call("/password", { token: session.data.accessToken, body: { currentPassword: password, newPassword: next, confirmPassword: next } })));
+  assert.equal(results.filter((r) => r.status === 200).length, 1);
+  assert.ok(results.some((r) => [401, 409].includes(r.status)));
+});
 test("limits repeated login requests", async () => {
   let response;
   for (let i = 0; i < 31; i += 1) response = await call("/login");

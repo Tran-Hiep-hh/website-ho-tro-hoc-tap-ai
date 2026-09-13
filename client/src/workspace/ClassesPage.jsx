@@ -16,7 +16,7 @@ import {
   Tabs,
 } from "./ui.jsx";
 
-export default function ClassesPage({ classId }) {
+export default function ClassesPage({ classId, initialTab }) {
   const {
     data,
     setData,
@@ -32,7 +32,7 @@ export default function ClassesPage({ classId }) {
   } = useWorkspace();
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState(null);
-  const [tab, setTab] = useState("materials");
+  const [tab, setTab] = useState(initialTab === "requests" && isTeacher ? "requests" : "materials");
   const [joinMatch, setJoinMatch] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

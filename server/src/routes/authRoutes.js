@@ -14,5 +14,7 @@ export function createAuthRouter(repository = createAuthRepository()) {
   router.post("/refresh", protectAuthMutation, authRateLimit(120, 60_000), controller.refresh);
   router.post("/logout", protectAuthMutation, controller.logout);
   router.get("/me", requireAuth(service), controller.me);
+  router.put("/profile", protectAuthMutation, requireAuth(service), controller.updateProfile);
+  router.post("/password", protectAuthMutation, requireAuth(service), authRateLimit(10, 15 * 60_000), controller.changePassword);
   return router;
 }

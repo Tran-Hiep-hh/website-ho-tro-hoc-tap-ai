@@ -18,6 +18,14 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [email, setEmail] = useState("");
   const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const ended = (event) => {
+      setUser(null); setNotice(event.detail); setPage("login");
+      window.location.hash = "/login";
+    };
+    window.addEventListener("study-ai-session-ended", ended);
+    return () => window.removeEventListener("study-ai-session-ended", ended);
+  }, []);
 
   useEffect(() => {
     const changed = () => {
@@ -105,6 +113,7 @@ export default function App() {
       <Workspace
         route={route}
         user={user}
+        onUserChange={setUser}
         onLogout={() => {
           setUser(null);
           setNotice("Bạn đã đăng xuất thành công.");

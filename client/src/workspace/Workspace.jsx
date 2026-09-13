@@ -90,7 +90,7 @@ function Shell({ route, previewRole, onLogout }) {
   else if (section === "documents")
     page = <DocumentsPage documentId={route.split("/")[1]} />;
   else if (section === "classes")
-    page = <ClassesPage classId={route.split("/")[1]} />;
+    page = <ClassesPage classId={route.split("/")[1]} initialTab={route.split("/")[2]} />;
   else if (section === "contents") page = <LibraryPage />;
   else if (section === "generate")
     page = <GeneratePage sourceId={route.split("/")[1]} />;
@@ -223,7 +223,7 @@ function Shell({ route, previewRole, onLogout }) {
               aria-label={`Thông báo, ${unread} chưa đọc`}
             >
               <Icon name="bell" />
-              {unread > 0 && <i />}
+              {unread > 0 && <span className="ws-notification-count" aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}
             </a>
             <a className="ws-top-avatar" href={href("profile")} aria-label="Mở hồ sơ cá nhân" title="Hồ sơ cá nhân">
               {user.fullName.split(" ").at(-1).slice(0, 1)}
@@ -232,7 +232,7 @@ function Shell({ route, previewRole, onLogout }) {
         </header>
         <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, học liệu, lớp học, bài giao và kết quả được lưu trên máy chủ. AI đang giả lập; thông báo đang được hoàn thiện."}
+            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, học liệu, lớp học, bài giao, kết quả và thông báo được lưu trên máy chủ. Nội dung AI đang giả lập."}
           </span>
           <div>
             {previewRole && (
@@ -254,7 +254,7 @@ function Shell({ route, previewRole, onLogout }) {
                   text: "Các thay đổi trong bản xem trước sẽ được đặt lại. Tài khoản thật không bị ảnh hưởng.",
                   label: "Đặt lại",
                   action: () => {
-                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts, classes: old.classes, members: old.members, requests: old.requests, sharedDocuments: old.sharedDocuments, assignments: old.assignments, classAttempts: old.classAttempts } : {}) }));
+                    setData((old) => ({ ...initialData(user), ...(!previewRole ? { notifications: old.notifications, documents: old.documents, contents: old.contents, learned: old.learned, attempts: old.attempts, classes: old.classes, members: old.members, requests: old.requests, sharedDocuments: old.sharedDocuments, assignments: old.assignments, classAttempts: old.classAttempts } : {}) }));
                     navigate("home");
                   },
                 })
@@ -312,7 +312,7 @@ function Shell({ route, previewRole, onLogout }) {
 
 export default function Workspace(props) {
   return (
-    <WorkspaceProvider user={props.user} previewRole={props.previewRole}>
+    <WorkspaceProvider user={props.user} previewRole={props.previewRole} onUserChange={props.onUserChange}>
       <Shell {...props} />
     </WorkspaceProvider>
   );

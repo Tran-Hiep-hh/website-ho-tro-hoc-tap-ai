@@ -119,3 +119,14 @@ test("Deadline rejects late edits and finalizes saved answers even when the brow
   assert.equal(automatic.score, 0); assert.equal(automatic.status, "SUBMITTED");
   assert.equal((await call(`/assignments/${b.id}/attempts`, "POST", {}, 2)).status, 409);
 });
+test("Quiz notifications are emitted once at publication, only to active members", async () => {
+  const draft = await fixture({ status: "DRAFT" });
+  const route = `assignments/${draft.id}`;
+  assert.ok(!(await call("/notifications", "GET", undefined, 2)).notifications.some((n) => n.route === route));
+  await call(`/assignments/${draft.id}/status`, "POST", { status: "PUBLISHED" });
+  await call(`/assignments/${draft.id}/status`, "POST", { status: "PUBLISHED" });
+  assert.equal((await call("/notifications", "GET", undefined, 2)).notifications.filter((n) => n.route === route).length, 1);
+  assert.ok(!(await call("/notifications", "GET", undefined, 3)).notifications.some((n) => n.route === route));
+  const published = await fixture();
+  assert.equal((await call("/notifications", "GET", undefined, 2)).notifications.filter((n) => n.route === `assignments/${published.id}`).length, 1);
+});

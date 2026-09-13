@@ -135,7 +135,7 @@ Tài liệu lớp xuất hiện trong **Học liệu → Tài liệu lớp học
 
 API `/api/classes` kiểm tra vai trò và chủ lớp. Yêu cầu đang chờ không có quyền xem tài liệu hoặc danh sách thành viên. Các thao tác duyệt, chia sẻ, rời/xóa lớp dùng transaction; lớp đang có Quiz diễn ra không được xóa/rời hoặc xóa thành viên. Xóa lớp giữ tài liệu gốc và lịch sử database.
 
-Chạy `npm run migrate --workspace server`: migration `005_classes.sql` chỉ bổ sung trường `classrooms.group_name`, không xóa dữ liệu. Thông báo vẫn là giao diện mẫu.
+Chạy `npm run migrate --workspace server`: migration `005_classes.sql` chỉ bổ sung trường `classrooms.group_name`, không xóa dữ liệu.
 
 Học sinh đang chờ duyệt có thể nhấn **Hủy yêu cầu** trên thẻ lớp và gửi lại bằng mã lớp khi cần. Chỉ hủy được yêu cầu của chính mình còn `PENDING`; nếu giáo viên đã duyệt thì danh sách được cập nhật để học sinh chọn rời lớp. Migration `007_cancel_join_request.sql` bổ sung trạng thái `CANCELLED` cho yêu cầu tham gia, giữ lịch sử và không thêm trường dữ liệu.
 
@@ -150,6 +150,22 @@ Máy chủ chấm theo đáp án của phiên bản đã giao và hiển thị �
 Giáo viên mở **Xem kết quả** để xem người đã hoàn thành/chưa làm, điểm cao nhất, trung bình, chi tiết từng lượt và xuất CSV. Lịch sử học sinh đã rời lớp vẫn được giữ. Nhấn **Làm mới** để nhận bài nộp từ tài khoản khác.
 
 API `/api/assignments` dùng xác thực và phân quyền theo chủ lớp/thành viên. Migration `006_assignments.sql` bổ sung trạng thái bài giao `DRAFT` và `quiz_attempts.answer_revision` để kiểm tra xung đột khi lưu; giữ dữ liệu hiện có. Không cần DeepSeek API để chạy luồng này.
+
+## Thông báo với dữ liệu thật
+
+Thông báo được lưu trong database khi học sinh xin tham gia lớp, giáo viên duyệt/từ chối, chia sẻ tài liệu mới hoặc công bố Quiz. Bản nháp không gửi thông báo; chia sẻ lại tài liệu đã có hoặc duyệt lại yêu cầu đã xử lý không tạo thông báo trùng. Người nhận học liệu/Quiz là thành viên đang hoạt động tại thời điểm gửi.
+
+Biểu tượng chuông hiển thị số chưa đọc. Trang **Thông báo** hỗ trợ lọc chưa đọc, bấm để đánh dấu đã đọc và mở đúng nội dung, đánh dấu tất cả đã đọc và làm mới. Trạng thái còn sau khi tải lại trang. Giao diện kiểm tra mới mỗi 30 giây khi trang đang hiển thị và khi quay lại cửa sổ; chưa dùng WebSocket hoặc gửi email. Liên kết cũ vẫn chịu kiểm tra quyền của lớp/bài giao nếu nội dung đã bị hủy hoặc bạn đã rời lớp.
+
+Chạy `npm run migrate --workspace server`: migration `008_notifications.sql` thêm bảng `notifications` và chỉ mục, giữ nguyên dữ liệu cũ. Chỉ các sự kiện mới tạo thông báo, không tạo bù lịch sử. API `/api/notifications` kiểm tra người nhận khi đọc hoặc đánh dấu đã đọc. Đánh dấu tất cả chỉ áp dụng đến thông báo đã tải, không đánh dấu nhầm thông báo mới đến sau đó.
+
+## Hồ sơ cá nhân và đổi mật khẩu
+
+Đăng nhập thật rồi bấm ảnh đại diện góc trên bên phải để mở **Hồ sơ cá nhân**. Có thể cập nhật họ tên (2–100 ký tự); email và vai trò chỉ xem. Tên mới được cập nhật trên thanh bên và lưu sau khi tải lại trang.
+
+Tab **Đổi mật khẩu** yêu cầu mật khẩu hiện tại, mật khẩu mới và xác nhận. Mật khẩu mới phải khác mật khẩu hiện tại, ít nhất 8 ký tự và tối đa 72 byte UTF-8. Sau khi đổi thành công, tất cả phiên của tài khoản bị thu hồi, cookie trên thiết bị hiện tại được xóa và người dùng được đưa về đăng nhập. Thiết bị khác sẽ về đăng nhập khi gọi API hoặc tải lại trang.
+
+API `PUT /api/auth/profile` chỉ nhận `fullName`; `POST /api/auth/password` nhận `currentPassword`, `newPassword`, `confirmPassword`. Máy chủ kiểm tra mật khẩu bằng bcrypt, cập nhật hash và thu hồi phiên trong cùng transaction; chặn một yêu cầu đăng nhập cũ tạo phiên sau khi mật khẩu đã đổi. Phần này dùng các bảng `users` và `refresh_tokens` hiện có, không thêm trường hoặc migration mới.
 
 ## Bản xem trước giao diện máy tính
 
