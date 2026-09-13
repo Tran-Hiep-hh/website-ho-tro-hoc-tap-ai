@@ -10,7 +10,7 @@ test("personal upload survives reload and original download, then disappears aft
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Mật khẩu", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
   await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
   const contents = "Khóa chính xác định duy nhất mỗi bản ghi.";
   await page.locator('input[type="file"]').setInputFiles({ name: "Tài liệu của tôi.txt", mimeType: "text/plain", buffer: Buffer.from(contents) });
@@ -43,7 +43,7 @@ test("personal upload survives reload and original download, then disappears aft
   const downloads = [];
   page.on("download", (item) => downloads.push(item));
   const popupEvent = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Xem Bài học.pdf", exact: true }).click();
+  await page.getByRole("row", { name: "Xem tài liệu Bài học.pdf", exact: true }).locator("td").nth(1).click();
   const popup = await popupEvent;
   popup.on("download", (item) => downloads.push(item));
   await expect(popup).toHaveURL(/^blob:/);

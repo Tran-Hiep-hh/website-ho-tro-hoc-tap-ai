@@ -8,7 +8,7 @@ test("mock Quiz saves, edits, scores on server and survives reload", async ({ pa
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Mật khẩu", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
   await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "nguon-quiz.txt", mimeType: "text/plain", buffer: Buffer.from("Tài liệu cơ sở dữ liệu cho Quiz.") });
   await page.getByRole("button", { name: "Tải tài liệu lên", exact: true }).click();
@@ -47,11 +47,11 @@ test("mock Quiz saves, edits, scores on server and survives reload", async ({ pa
   await page.getByRole("button", { name: "Xem lịch sử", exact: true }).click();
   await expect(page.getByRole("cell", { name: "6/10", exact: true })).toBeVisible();
   await page.goto(quizUrl);
-  await page.getByRole("button", { name: "Thư viện học liệu", exact: true }).click();
+  await page.getByRole("button", { name: "Học liệu của tôi", exact: true }).click();
   await page.locator(".ws-learning-card").filter({ hasText: "Quiz đã chỉnh sửa" }).getByRole("button", { name: "Xóa", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Xóa học liệu", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Quiz đã chỉnh sửa", exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
   await page.getByRole("button", { name: "Xóa nguon-quiz.txt", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();

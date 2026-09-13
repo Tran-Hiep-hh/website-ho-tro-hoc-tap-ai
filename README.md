@@ -95,9 +95,9 @@ Có thể đặt `PLAYWRIGHT_CHANNEL=chrome` nếu dùng Google Chrome. Báo cá
 
 Migration `database/migrations/001_auth.sql` bổ sung trạng thái tài khoản và mã phiên cho database đã có. Lệnh migrate có thể chạy lại và không xóa dữ liệu.
 
-## Tài liệu cá nhân với dữ liệu thật
+## Tài liệu của tôi với dữ liệu thật
 
-Đăng nhập tài khoản thật rồi mở **Tài liệu cá nhân**. Hệ thống hỗ trợ tải PDF/DOCX/TXT (tối đa 10 MB/tệp), trích xuất văn bản, tìm kiếm/lọc, xem nội dung, tải tệp gốc và xóa. Dữ liệu vẫn còn sau khi tải lại trang. PDF dạng ảnh chưa có OCR; tệp không có văn bản được đánh dấu thất bại và vẫn có thể tải xuống hoặc xóa. TXT dùng UTF-8.
+Đăng nhập tài khoản thật rồi mở **Tài liệu của tôi**. Hệ thống hỗ trợ tải PDF/DOCX/TXT (tối đa 10 MB/tệp), trích xuất văn bản, tìm kiếm/lọc, xem nội dung, tải tệp gốc và xóa. Dữ liệu vẫn còn sau khi tải lại trang. PDF dạng ảnh chưa có OCR; tệp không có văn bản được đánh dấu thất bại và vẫn có thể tải xuống hoặc xóa. TXT dùng UTF-8.
 
 Với database đã có, chạy `npm run migrate --workspace server` trước khi khởi động ứng dụng. Migration `002_documents.sql` bổ sung `file_size` và `created_at`, có thể chạy lại và không xóa dữ liệu hiện có.
 
@@ -131,7 +131,7 @@ Chế độ tạo nội dung vẫn là **MOCK**, không gọi DeepSeek hoặc ph
 
 Giáo viên mở **Lớp học** để tạo/sửa/xóa lớp, sao chép mã tham gia, duyệt hoặc từ chối yêu cầu, quản lý thành viên và chia sẻ tài liệu PDF/DOCX/TXT của mình. Học sinh nhập mã, gửi yêu cầu và chờ duyệt. Nhấn **Làm mới** để nhận thay đổi từ tài khoản khác.
 
-Tài liệu lớp xuất hiện trong **Học liệu → Tài liệu lớp học**, không tự thêm vào tài liệu cá nhân của học sinh. PDF mở trong tab mới; DOCX/TXT có văn bản xem trước và tải nguyên tệp. Muốn dùng tài liệu lớp làm nguồn cá nhân, học sinh tải về rồi tự tải lên. Rời lớp, bị xóa khỏi lớp hoặc gỡ tài liệu sẽ thu hồi quyền truy cập từ máy chủ.
+Tài liệu lớp xuất hiện trong **Lớp học → chọn lớp → Tài liệu lớp**, không tự thêm vào tài liệu cá nhân của học sinh. PDF mở trong tab mới; DOCX/TXT có văn bản xem trước và tải nguyên tệp. Muốn dùng tài liệu lớp làm nguồn cá nhân, học sinh tải về rồi tự tải lên. Rời lớp, bị xóa khỏi lớp hoặc gỡ tài liệu sẽ thu hồi quyền truy cập từ máy chủ.
 
 API `/api/classes` kiểm tra vai trò và chủ lớp. Yêu cầu đang chờ không có quyền xem tài liệu hoặc danh sách thành viên. Các thao tác duyệt, chia sẻ, rời/xóa lớp dùng transaction; lớp đang có Quiz diễn ra không được xóa/rời hoặc xóa thành viên. Xóa lớp giữ tài liệu gốc và lịch sử database.
 
@@ -166,6 +166,14 @@ Chạy `npm run migrate --workspace server`: migration `008_notifications.sql` t
 Tab **Đổi mật khẩu** yêu cầu mật khẩu hiện tại, mật khẩu mới và xác nhận. Mật khẩu mới phải khác mật khẩu hiện tại, ít nhất 8 ký tự và tối đa 72 byte UTF-8. Sau khi đổi thành công, tất cả phiên của tài khoản bị thu hồi, cookie trên thiết bị hiện tại được xóa và người dùng được đưa về đăng nhập. Thiết bị khác sẽ về đăng nhập khi gọi API hoặc tải lại trang.
 
 API `PUT /api/auth/profile` chỉ nhận `fullName`; `POST /api/auth/password` nhận `currentPassword`, `newPassword`, `confirmPassword`. Máy chủ kiểm tra mật khẩu bằng bcrypt, cập nhật hash và thu hồi phiên trong cùng transaction; chặn một yêu cầu đăng nhập cũ tạo phiên sau khi mật khẩu đã đổi. Phần này dùng các bảng `users` và `refresh_tokens` hiện có, không thêm trường hoặc migration mới.
+
+## Tổng quan với số liệu thật
+
+Trang **Tổng quan** tổng hợp từ các API tài liệu, học liệu, lớp học và bài giao hiện có; không thêm bảng hoặc migration. Chờ các nguồn tải xong mới hiện thống kê. Nếu một nguồn lỗi, trang báo lỗi và cho thử lại, không hiển thị số 0 gây nhầm lẫn. Nhấn **Làm mới số liệu** để nhận thay đổi từ tài khoản khác.
+
+Giáo viên xem số lớp đang quản lý, số học sinh duy nhất trong các lớp, yêu cầu chờ duyệt, Quiz đã công bố và bài nộp gần đây. Học sinh xem số tài liệu tự tải lên, học liệu cá nhân, lớp đã được duyệt, điểm trung bình của mọi lượt Quiz đã nộp (cá nhân và được giao), kết quả gần đây và số thẻ Flashcard đã nhớ.
+
+Học liệu gần đây được sắp theo ngày tạo mới nhất; Quiz sắp đến hạn được sắp theo hạn gần nhất, loại bài nháp/hủy/hết hạn và bài học sinh đã hết lượt. Các mục dẫn đến lớp, yêu cầu tham gia, học liệu hoặc kết quả tương ứng. Biểu đồ 7 ngày đếm ngày tạo của tài liệu/học liệu hiện có và lượt Quiz đã nộp; với giáo viên là bài nộp của lớp, với học sinh là lượt làm của mình. Đây không phải nhật ký lưu mọi thao tác đã xóa.
 
 ## Bản xem trước giao diện máy tính
 

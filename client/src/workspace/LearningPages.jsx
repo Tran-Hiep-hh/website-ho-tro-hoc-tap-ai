@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { apiRequest } from "../lib/api.js";
-import { viewDocument } from "../lib/documentViewer.js";
+import { clickable } from "./clickable.js";
 import MindmapEditor from "./MindmapEditor.jsx";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
@@ -16,7 +16,7 @@ import {
 } from "./ui.jsx";
 
 export function LibraryPage() {
-  const { data, navigate, confirm, remove, notify, classDocuments, sharedClasses, isPreview, reloadClasses } = useWorkspace();
+  const { data, navigate, confirm, remove, notify, isPreview, isTeacher, reloadQuizzes, href } = useWorkspace();
   const [type, setType] = useState("ALL");
   const [query, setQuery] = useState("");
   const items = data.contents.filter(
@@ -55,20 +55,21 @@ export function LibraryPage() {
   return (
     <>
       <PageHeading
-        title="Học liệu"
-        description="Thư viện kiến thức của bạn, được tổ chức theo cách bạn muốn học."
+        title="Học liệu của tôi"
+        eyebrow="KHÔNG GIAN CÁ NHÂN"
+        description="Quiz, Flashcard và Mindmap do bạn tạo. Đây là nơi ôn tập và chỉnh sửa bản gốc."
         action={
           <Button icon="plus" onClick={() => navigate("generate")}>
             Tạo học liệu
           </Button>
         }
       />
+      <div className="ws-scope-banner personal"><Icon name="spark" /><div><strong>Học liệu do bạn tạo</strong><p>{isTeacher ? "Giao Quiz cho lớp sẽ tạo một bài giao riêng. Bạn quản lý lịch và kết quả tại mục Giao Quiz." : "Quiz ở đây dùng để tự luyện, không có hạn nộp. Bài giáo viên giao nằm ở mục Bài Quiz được giao."}</p></div><a href={href("assignments")}>{isTeacher ? "Quản lý bài giao" : "Xem Quiz được giao"} →</a></div>
       <div className="ws-toolbar">
-        {!isPreview && <Button variant="secondary" onClick={reloadClasses}>Làm mới</Button>}
+        {!isPreview && <Button variant="secondary" onClick={reloadQuizzes}>Làm mới</Button>}
         <Tabs
           items={[
             ["ALL", "Tất cả học liệu"],
-            ["DOCUMENT", "Tài liệu lớp học"],
             ["QUIZ", "Quiz"],
             ["FLASHCARD", "Flashcard"],
             ["MINDMAP", "Mindmap"],
@@ -83,25 +84,8 @@ export function LibraryPage() {
         />
       </div>
       <div className="ws-card-grid">
-        {(type === "ALL" || type === "DOCUMENT") && classDocuments.filter((item) => item.name.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi"))).map((item) => (
-          <article className="ws-learning-card" key={item.id}>
-            <div className="ws-learning-art document">
-              <Icon name="file" size={47} />
-              <span>Tài liệu lớp học</span>
-            </div>
-            <div className="ws-class-card-body">
-              <Badge tone="blue">{item.type} · Tài liệu lớp học</Badge>
-              <h2>{item.name}</h2>
-              <p>{sharedClasses.filter((cls) => cls.materialIds.includes(item.id)).map((cls) => cls.name).join(" · ")}</p>
-              <div className="ws-card-footer">
-                <span className="ws-muted">{item.size}</span>
-                <Button variant="secondary" icon="eye" onClick={() => viewDocument(item, { isPreview, navigate, notify })}>Xem tài liệu</Button>
-              </div>
-            </div>
-          </article>
-        ))}
         {items.map((item) => (
-          <article className="ws-learning-card" key={item.id}>
+          <article className="ws-learning-card ws-clickable" key={item.id} {...clickable(() => navigate(`content/${item.id}`), `Mở học liệu ${item.title}`)}>
             <div className={`ws-learning-art ${item.type.toLowerCase()}`}>
               <Icon name={typeIcons[item.type]} size={47} />
               <span>{typeLabels[item.type]}</span>
@@ -110,6 +94,7 @@ export function LibraryPage() {
             </div>
             <div className="ws-class-card-body">
               <div className="ws-card-labels">
+                <Badge tone="blue">{item.type === "QUIZ" ? isTeacher ? "Bản gốc · Tự luyện" : "Quiz tự luyện" : "Ôn tập cá nhân"}</Badge>
                 {item.generationMode === "MOCK" && <Badge tone="orange">AI giả lập · Đã lưu</Badge>}
                 <Badge
                   tone={
@@ -153,7 +138,7 @@ export function LibraryPage() {
           </article>
         ))}
       </div>
-      {!items.length && !((type === "ALL" || type === "DOCUMENT") && classDocuments.some((item) => item.name.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")))) && (
+      {!items.length && (
         <Empty
           title="Chưa có học liệu phù hợp"
           text="Thử từ khóa khác hoặc tạo nội dung mới từ tài liệu của bạn."

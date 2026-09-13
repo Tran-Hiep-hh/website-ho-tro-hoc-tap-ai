@@ -295,10 +295,11 @@ export default function ContentPage({ contentId }) {
   return (
     <>
       <Button variant="ghost" icon="back" onClick={() => navigate("contents")}>
-        Thư viện học liệu
+        Học liệu của tôi
       </Button>
       <PageHeading
         title={item.title}
+        eyebrow={item.type === "QUIZ" ? "QUIZ CÁ NHÂN · TỰ LUYỆN" : "ÔN TẬP CÁ NHÂN"}
         description={`${typeLabels[item.type]} · ${item.difficulty} · ${item.sources.length} tài liệu nguồn`}
         action={
           item.type !== "MINDMAP" && (

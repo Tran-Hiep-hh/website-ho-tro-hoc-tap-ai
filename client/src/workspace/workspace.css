@@ -189,6 +189,12 @@
   display: flex;
   padding: 5px;
 }
+.ws-stat-link { color: inherit; text-decoration: none; }
+.ws-clickable { cursor: pointer; }
+.ws-clickable:focus-visible { outline: 2px solid #688057; outline-offset: 3px; }
+.ws-clickable:hover { box-shadow: 0 4px 18px #24666314; }
+.ws-stat-link:hover { border-color: #688057; }
+.ws-stat-link:focus-visible { outline: 2px solid #688057; outline-offset: 3px; }
 .ws-notification-count {
   position: absolute;
   min-width: 18px;
@@ -1015,3 +1021,31 @@
     font-size: 9px;
   }
 }
+.ws-nav-group {
+  margin: 16px 14px 5px;
+  color: var(--text-muted, #6d8186);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.3px;
+}
+.ws-scope-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 26px;
+  margin-bottom: 24px;
+  border: 1px solid #cbdde9;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #edf5ff, #f6f3ff);
+  color: #345c78;
+}
+.ws-scope-banner.classroom {
+  background: linear-gradient(110deg, #e8f7ef, #f6fae9);
+  border-color: #c9e3d5;
+  color: #306351;
+}
+.ws-scope-banner > svg { width: 30px; height: 30px; flex-shrink: 0; }
+.ws-scope-banner > div { flex: 1; }
+.ws-scope-banner strong { font-size: 16px; }
+.ws-scope-banner p { margin: 6px 0 0; font-size: 13px; line-height: 1.65; }
+.ws-scope-banner > a { color: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; }

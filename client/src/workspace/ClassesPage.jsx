@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { apiRequest } from "../lib/api.js";
 import { viewDocument } from "../lib/documentViewer.js";
+import { clickable } from "./clickable.js";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
@@ -142,7 +143,7 @@ export default function ClassesPage({ classId, initialTab }) {
         modal === "join"
           ? "Tham gia lớp học"
           : modal === "share"
-            ? "Chia sẻ học liệu"
+            ? "Chia sẻ tài liệu"
             : modal === "edit"
               ? "Cập nhật lớp học"
               : "Tạo lớp học mới"
@@ -288,7 +289,7 @@ export default function ClassesPage({ classId, initialTab }) {
             <Button variant="secondary" onClick={() => setModal(null)}>
               Hủy
             </Button>
-            <Button type="submit" disabled={busy}>Chia sẻ học liệu</Button>
+            <Button type="submit" disabled={busy}>Chia sẻ tài liệu</Button>
           </div>
         </form>
       ) : (
@@ -395,8 +396,8 @@ export default function ClassesPage({ classId, initialTab }) {
           {!isPreview && <Button variant="secondary" disabled={busy} onClick={() => { reloadClasses(); reloadAssignments(); }}>Làm mới</Button>}
           <Tabs
             items={[
-              ["materials", "Học liệu"],
-              ["assignments", "Bài Quiz"],
+              ["materials", "Tài liệu lớp"],
+              ["assignments", "Quiz được giao"],
               ["members", "Thành viên"],
               ...(isTeacher
                 ? [
@@ -413,7 +414,7 @@ export default function ClassesPage({ classId, initialTab }) {
           />
           {isTeacher && tab === "materials" && (
             <Button icon="plus" onClick={() => setModal("share")}>
-              Chia sẻ học liệu
+              Chia sẻ tài liệu
             </Button>
           )}
         </div>
@@ -421,7 +422,7 @@ export default function ClassesPage({ classId, initialTab }) {
           {tab === "materials" &&
             (materials.length ? (
               materials.map((item) => (
-                <div className="ws-resource-row" key={item.id}>
+                <div className="ws-resource-row ws-clickable" key={item.id} {...clickable(() => viewDocument(item, { isPreview, navigate, notify }), `Xem tài liệu ${item.name}`)}>
                   <span className="ws-icon-tile green">
                     <Icon
                       name={
@@ -435,13 +436,13 @@ export default function ClassesPage({ classId, initialTab }) {
                   </span>
                   <div>
                     <strong>{item.name ?? item.title}</strong>
-                    <small>{item.type}</small>
+                    <small>{item.type} · {cls.name} · {cls.teacher} chia sẻ</small>
                   </div>
                   <Button
                     variant="ghost"
                     onClick={() => viewDocument(item, { isPreview, navigate, notify })}
                   >
-                    Xem học liệu
+                    Xem tài liệu
                   </Button>
                   {isTeacher && (
                     <IconButton
@@ -465,12 +466,12 @@ export default function ClassesPage({ classId, initialTab }) {
                 </div>
               ))
             ) : (
-              <Empty title="Chưa có học liệu được chia sẻ" />
+              <Empty title="Chưa có tài liệu được chia sẻ" />
             ))}
           {tab === "assignments" && (
             <>
               <div className="ws-section-heading">
-                <h2>Bài Quiz của lớp</h2>
+                <h2>Quiz được giao trong lớp</h2>
                 {isTeacher && (
                   <Button
                     icon="plus"
@@ -493,7 +494,7 @@ export default function ClassesPage({ classId, initialTab }) {
                     </span>
                     <div>
                       <strong>{item.title}</strong>
-                      <small>Hạn nộp: {dateLabel(item.dueAt)}</small>
+                      <small>{cls.name} · Hạn nộp: {dateLabel(item.dueAt)} · Tối đa {item.maxAttempts} lượt làm</small>
                     </div>
                     <Button
                       variant="secondary"
@@ -648,7 +649,7 @@ export default function ClassesPage({ classId, initialTab }) {
       </div>
       <div className="ws-card-grid">
         {classes.map((item) => (
-          <article className="ws-class-card" key={item.id}>
+          <article className={`ws-class-card ${isTeacher || item.joined ? "ws-clickable" : ""}`} key={item.id} {...(isTeacher || item.joined ? clickable(() => navigate(`classes/${item.id}`), `Vào lớp ${item.name}`) : {})}>
             <div className={`ws-class-card-cover ${item.color}`}>
               <Badge tone="lime">{item.group}</Badge>
               <Icon name="book" size={44} />

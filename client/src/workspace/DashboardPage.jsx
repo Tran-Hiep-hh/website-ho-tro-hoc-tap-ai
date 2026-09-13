@@ -1,36 +1,26 @@
 import { scoreLabel } from "./score.js";
+import { useEffect, useState } from "react";
+import { dashboardData } from "./dashboard.js";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
-import { Badge, Button, Empty, PageHeading } from "./ui.jsx";
+import { Badge, Button, Empty, PageHeading, Progress } from "./ui.jsx";
 import { dateLabel, typeIcons, typeLabels } from "./data.js";
 
 export default function DashboardPage() {
-  const { data, user, isTeacher, isPreview, href, navigate, personalDocuments } = useWorkspace();
-  const classes = data.classes.filter((item) => isTeacher || item.joined);
-  const average = data.attempts.length
-    ? Math.round(
-        data.attempts.reduce((sum, item) => sum + item.score, 0) /
-          data.attempts.length,
-      )
-    : null;
-  const activity = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - 6 + index);
-    const count = [
-      ...personalDocuments.map((item) => item.date),
-      ...data.contents.map((item) => item.createdAt),
-      ...data.attempts.map((item) => item.date),
-    ].filter(
-      (value) => new Date(value).toDateString() === date.toDateString(),
-    ).length;
-    return {
-      label: date.toLocaleDateString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-      }),
-      count,
-    };
-  });
+  const { data, user, isTeacher, isPreview, href, navigate, personalDocuments, documentsLoading, documentsError, reloadDocuments, quizzesLoading, quizzesError, reloadQuizzes, classesLoading, classesError, reloadClasses, assignmentsLoading, assignmentsError, reloadAssignments } = useWorkspace();
+  const [refreshing, setRefreshing] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
+  async function refresh() {
+    setRefreshing(true);
+    try { await Promise.all([reloadDocuments(), reloadQuizzes(), reloadClasses(), reloadAssignments()]); setNow(new Date()); }
+    finally { setRefreshing(false); }
+  }
+  const summary = dashboardData(data, isTeacher, personalDocuments, now);
+  const { classes, average, activity } = summary;
+  const loading = refreshing || documentsLoading || quizzesLoading || classesLoading || assignmentsLoading;
+  const error = [documentsError, quizzesError, classesError, assignmentsError].filter(Boolean).join(" ");
+  if (loading || error) return <><PageHeading title={`Xin chào, ${user.fullName}.`} /><Empty title={loading ? "Đang tải số liệu tổng quan…" : "Không tải được số liệu tổng quan"} text={loading ? "Đang lấy tài liệu, lớp học và kết quả của bạn." : error} action={!loading && <Button onClick={refresh}>Thử lại</Button>} /></>;
   return (
     <>
       <PageHeading
@@ -41,6 +31,7 @@ export default function DashboardPage() {
             : "Mỗi bước nhỏ hôm nay sẽ đưa bạn gần hơn đến mục tiêu."
         }
         eyebrow={isTeacher ? "KHÔNG GIAN GIẢNG DẠY" : "KHÔNG GIAN HỌC TẬP"}
+        action={!isPreview && <Button variant="secondary" icon="refresh" onClick={refresh}>Làm mới số liệu</Button>}
       />
       <section className="ws-hero">
         <div>
@@ -83,13 +74,19 @@ export default function DashboardPage() {
         </div>
       </section>
       <div className="ws-stats-grid">
-        {[
+        {(isTeacher ? [
+          ["users", "Lớp đang quản lý", classes.length, "Các lớp đang hoạt động", "orange", "classes"],
+          ["users", "Học sinh trong các lớp", summary.studentCount, "Mỗi học sinh chỉ tính một lần", "green", "classes"],
+          ["clock", "Yêu cầu chờ duyệt", summary.requests.length, "Xem danh sách yêu cầu bên dưới", "purple", summary.requests.length ? `classes/${summary.requests[0].classId}/requests` : "classes"],
+          ["quiz", "Quiz đã công bố", summary.publishedCount, "Bao gồm bài sắp mở, đang mở và đã kết thúc", "blue", "assignments"],
+        ] : [
           [
             "file",
-            "Tài liệu cá nhân",
+            "Tài liệu của tôi",
             personalDocuments.length,
             "Nguồn kiến thức của bạn",
             "green",
+            "documents",
           ],
           [
             "spark",
@@ -97,6 +94,7 @@ export default function DashboardPage() {
             data.contents.length,
             "Quiz, Flashcard và Mindmap",
             "purple",
+            "contents",
           ],
           [
             "users",
@@ -104,23 +102,25 @@ export default function DashboardPage() {
             classes.length,
             "Cùng nhau học tốt hơn",
             "orange",
+            "classes",
           ],
           [
             "trophy",
             "Điểm Quiz trung bình",
             average === null ? "—" : scoreLabel(average),
-            `${data.attempts.length} lượt làm cá nhân`,
+            `${summary.attemptCount} lượt đã nộp, gồm tự luyện và bài giao`,
             "blue",
+            "results",
           ],
-        ].map(([icon, label, value, note, tone]) => (
-          <section className="ws-stat" key={label}>
+        ]).map(([icon, label, value, note, tone, route]) => (
+          <a className="ws-stat ws-stat-link" key={label} href={href(route)}>
             <span className={`ws-icon-tile ${tone}`}>
               <Icon name={icon} />
             </span>
             <span className="ws-muted">{label}</span>
             <strong>{value}</strong>
             <small>{note}</small>
-          </section>
+          </a>
         ))}
       </div>
       <div className="ws-columns">
@@ -134,9 +134,7 @@ export default function DashboardPage() {
               Xem tất cả <Icon name="arrow" size={15} />
             </a>
           </div>
-          {data.contents
-            .slice(-3)
-            .reverse()
+          {summary.recentContents
             .map((item) => (
               <a
                 href={href(`content/${item.id}`)}
@@ -163,7 +161,7 @@ export default function DashboardPage() {
           <div className="ws-section-heading">
             <div>
               <h2>Hoạt động 7 ngày</h2>
-              <p>Tài liệu, học liệu và lượt làm Quiz</p>
+              <p>{isTeacher ? "Tài liệu, học liệu của bạn và bài nộp trong lớp" : "Tài liệu, học liệu và lượt làm Quiz của bạn"}</p>
             </div>
             <Badge>
               {activity.reduce((sum, day) => sum + day.count, 0)} hoạt động
@@ -218,6 +216,7 @@ export default function DashboardPage() {
               <Icon name="chevron" size={17} />
             </a>
           ))}
+          {!classes.length && <Empty title={isTeacher ? "Chưa có lớp đang quản lý" : "Bạn chưa tham gia lớp nào"} action={<Button onClick={() => navigate("classes")}>{isTeacher ? "Tạo lớp học" : "Tham gia lớp"}</Button>} />}
         </section>
         <section className="ws-panel">
           <div className="ws-section-heading">
@@ -229,14 +228,7 @@ export default function DashboardPage() {
               Xem tất cả <Icon name="arrow" size={15} />
             </a>
           </div>
-          {data.assignments
-            .filter(
-              (item) =>
-                item.status === "PUBLISHED" &&
-                new Date(item.dueAt) > new Date() &&
-                classes.some((cls) => cls.id === item.classId),
-            )
-            .slice(0, 2)
+          {summary.upcoming.slice(0, 3)
             .map((item) => (
               <a
                 className="ws-resource-row"
@@ -249,10 +241,31 @@ export default function DashboardPage() {
                 <div>
                   <strong>{item.title}</strong>
                   <small>Hạn nộp: {dateLabel(item.dueAt)}</small>
+                  <small>{new Date(item.startAt) > now ? "Chưa đến giờ mở bài" : item.inProgress ? "Bạn đang làm bài này" : "Đang mở"}</small>
                 </div>
                 <Icon name="chevron" size={17} />
               </a>
             ))}
+          {!summary.upcoming.length && <Empty title="Không có Quiz sắp đến hạn" text="Bài mới sẽ xuất hiện ở đây khi được công bố. Bài hết hạn hoặc hết lượt làm không được hiển thị." />}
+        </section>
+      </div>
+      <div className="ws-columns">
+        <section className="ws-panel">
+          <div className="ws-section-heading"><h2>{isTeacher ? "Bài nộp gần đây" : "Kết quả gần đây"}</h2><a href={href(isTeacher && summary.recentResults.length ? `results/assignment/${summary.recentResults[0].assignmentId}` : "results")}>{isTeacher && summary.recentResults.length ? "Thống kê bài giao gần nhất" : "Xem tất cả"}</a></div>
+          {summary.recentResults.map((item) => <a className="ws-resource-row" key={item.id} href={href(`results/attempt/${item.id}`)}><span className="ws-icon-tile blue"><Icon name="quiz" /></span><div><strong>{item.title}</strong><small>{isTeacher ? `${item.name} · ` : ""}{dateLabel(item.date)}</small></div><Badge>{scoreLabel(item.score)}</Badge></a>)}
+          {!summary.recentResults.length && <Empty title={isTeacher ? "Chưa có bài nộp" : "Bạn chưa có kết quả Quiz"} />}
+        </section>
+        <section className="ws-panel">
+          {isTeacher ? <>
+            <div className="ws-section-heading"><h2>Yêu cầu tham gia cần duyệt</h2><Badge>{summary.requests.length} yêu cầu</Badge></div>
+            {summary.requests.slice(0, 5).map((item) => <a className="ws-resource-row" key={item.id} href={href(`classes/${item.classId}/requests`)}><span className="ws-icon-tile orange"><Icon name="users" /></span><div><strong>{item.name}</strong><small>{classes.find((cls) => cls.id === item.classId)?.name}</small></div><Icon name="chevron" size={17} /></a>)}
+            {!summary.requests.length && <Empty title="Không có yêu cầu chờ duyệt" />}
+          </> : <>
+            <div className="ws-section-heading"><h2>Tiến độ Flashcard</h2><Badge>{summary.remembered}/{summary.totalCards} thẻ đã nhớ</Badge></div>
+            <Progress value={summary.totalCards ? summary.remembered / summary.totalCards * 100 : 0} />
+            {summary.cards.slice(0, 3).map((item) => <a className="ws-resource-row" key={item.id} href={href(`content/${item.id}`)}><span className="ws-icon-tile purple"><Icon name="cards" /></span><div><strong>{item.title}</strong><small>{item.remembered}/{item.total} thẻ đã nhớ · {item.total - item.remembered} thẻ cần ôn</small></div><Icon name="chevron" size={17} /></a>)}
+            {!summary.cards.length && <Empty title="Chưa có bộ Flashcard" action={<Button onClick={() => navigate("generate")}>Tạo Flashcard</Button>} />}
+          </>}
         </section>
       </div>
       <section className="ws-account-summary">

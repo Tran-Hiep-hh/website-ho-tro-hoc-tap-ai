@@ -8,20 +8,20 @@ async function setup(page, request) {
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Mật khẩu", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
   await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "nguon-hoc-lieu.txt", mimeType: "text/plain", buffer: Buffer.from("Nguồn học liệu thử nghiệm.") });
   await page.getByRole("button", { name: "Tải tài liệu lên", exact: true }).click();
   await page.getByRole("button", { name: "Tạo học liệu từ nguon-hoc-lieu.txt", exact: true }).click();
 }
 async function cleanup(page, title) {
-  await page.getByRole("link", { name: "Học liệu", exact: true }).click();
+  await page.getByRole("link", { name: "Học liệu của tôi", exact: true }).click();
   await page.locator(".ws-learning-card").filter({ has: page.getByRole("heading", { name: title, exact: true }) }).getByRole("button", { name: "Xóa", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Xóa học liệu", exact: true }).click();
   await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+  await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
   await page.getByRole("button", { name: "Xóa nguon-hoc-lieu.txt", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();

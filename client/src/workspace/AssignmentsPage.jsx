@@ -178,7 +178,7 @@ export default function AssignmentsPage({ segments = [] }) {
               <input
                 name="startAt"
                 type="datetime-local"
-                defaultValue={inputDate(Date.now() + 3600000)}
+                defaultValue={inputDate(Date.now())}
                 required
               />
             </Field>
@@ -418,6 +418,11 @@ export default function AssignmentsPage({ segments = [] }) {
           )
         }
       />
+      <div className="ws-scope-banner classroom">
+        <Icon name="users" />
+        <div><strong>Quiz được giao cho lớp</strong><p>{isTeacher ? "Quản lý thời gian, lượt làm và kết quả của từng bài giao. Chỉnh sửa Quiz gốc tại Học liệu của tôi." : "Bài giáo viên giao có thời gian mở, hạn nộp và giới hạn lượt làm. Quiz tự luyện nằm trong Học liệu của tôi."}</p></div>
+        <Button variant="secondary" onClick={() => navigate("contents")}>Mở học liệu của tôi</Button>
+      </div>
       <section className="ws-panel">
         <div className="ws-toolbar">
           {!isPreview && <Button variant="secondary" onClick={reloadAssignments}>Làm mới</Button>}

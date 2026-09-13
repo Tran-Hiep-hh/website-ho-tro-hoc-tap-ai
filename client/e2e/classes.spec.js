@@ -14,9 +14,9 @@ test("teacher creates and shares; student requests access, reads class files and
       await target.getByLabel("Email", { exact: true }).fill(email);
       await target.getByLabel("Mật khẩu", { exact: true }).fill(password);
       await target.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-      await expect(target.getByRole("link", { name: "Tài liệu cá nhân", exact: true })).toBeVisible();
+      await expect(target.getByRole("link", { name: "Tài liệu của tôi", exact: true })).toBeVisible();
     }
-    await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+    await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
     await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles({ name: "Tài liệu lớp.txt", mimeType: "text/plain", buffer: Buffer.from("Tài liệu do giáo viên chia sẻ.") });
     await page.getByRole("button", { name: "Tải tài liệu lên", exact: true }).click();
@@ -28,10 +28,10 @@ test("teacher creates and shares; student requests access, reads class files and
     await page.getByRole("dialog").getByRole("button", { name: "Tạo lớp học", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Lớp học kiểm thử", exact: true })).toBeVisible();
     const code = await page.locator(".ws-class-code strong").innerText();
-    await page.getByRole("button", { name: "Chia sẻ học liệu", exact: true }).click();
+    await page.getByRole("button", { name: "Chia sẻ tài liệu", exact: true }).click();
     await page.getByLabel("Tài liệu lớp.txt", { exact: true }).check();
     await page.getByLabel("Tôi đã kiểm tra nội dung trước khi chia sẻ.").check();
-    await page.getByRole("dialog").getByRole("button", { name: "Chia sẻ học liệu", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Chia sẻ tài liệu", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await student.goto("http://localhost:5175/#/classes");
     await student.getByRole("button", { name: "Tham gia lớp", exact: true }).click();
@@ -66,17 +66,17 @@ test("teacher creates and shares; student requests access, reads class files and
     await student.reload();
     await expect(student.locator(".ws-notification.unread")).toHaveCount(0);
     await student.locator(".ws-notification").filter({ hasText: "Yêu cầu tham gia được duyệt" }).click();
-    await student.getByRole("button", { name: "Xem học liệu", exact: true }).click();
+    await student.getByRole("button", { name: "Xem tài liệu", exact: true }).click();
     await expect(student.locator("pre")).toHaveText("Tài liệu do giáo viên chia sẻ.");
     await expect(student.getByRole("button", { name: "Tạo học liệu", exact: true })).toHaveCount(0);
     await expect(student.getByRole("button", { name: "Xóa tài liệu", exact: true })).toHaveCount(0);
     const pending = student.waitForEvent("download");
     await student.getByRole("button", { name: "Tải tệp gốc", exact: true }).click();
     expect((await pending).suggestedFilename()).toBe("Tài liệu lớp.txt");
-    await student.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+    await student.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
     await expect(student.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();
     await student.goto("http://localhost:5175/#/contents");
-    await expect(student.getByRole("heading", { name: "Tài liệu lớp.txt", exact: true })).toBeVisible();
+    await expect(student.getByRole("heading", { name: "Tài liệu lớp.txt", exact: true })).toHaveCount(0);
     await student.goto("http://localhost:5175/#/classes");
     await student.getByRole("button", { name: "Vào lớp", exact: true }).click();
     await student.getByRole("button", { name: "Rời lớp học", exact: true }).click();
@@ -88,7 +88,7 @@ test("teacher creates and shares; student requests access, reads class files and
     await page.getByRole("button", { name: "Xóa lớp học", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Xác nhận", exact: true }).click();
     await expect(page).toHaveURL(/#\/classes$/);
-    await page.getByRole("link", { name: "Tài liệu cá nhân", exact: true }).click();
+    await page.getByRole("link", { name: "Tài liệu của tôi", exact: true }).click();
     await page.getByRole("button", { name: "Xóa Tài liệu lớp.txt", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Xóa tài liệu", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Không có tài liệu phù hợp" })).toBeVisible();

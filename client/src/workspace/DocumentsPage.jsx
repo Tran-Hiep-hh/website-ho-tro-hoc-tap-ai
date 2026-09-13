@@ -4,6 +4,7 @@ import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
 import { apiRequest } from "../lib/api.js";
 import { viewDocument as openDocument } from "../lib/documentViewer.js";
+import { clickable } from "./clickable.js";
 import {
   Badge,
   Button,
@@ -16,7 +17,7 @@ import {
 } from "./ui.jsx";
 
 export default function DocumentsPage({ documentId }) {
-  const { data, setData, navigate, remove, confirm, notify, ownerId, personalDocuments, accessibleDocuments, isPreview, documentsLoading, documentsError, reloadDocuments } = useWorkspace();
+  const { data, setData, navigate, remove, confirm, notify, ownerId, personalDocuments, accessibleDocuments, sharedClasses, href, isPreview, documentsLoading, documentsError, reloadDocuments } = useWorkspace();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("ALL");
   const [upload, setUpload] = useState(false);
@@ -26,6 +27,7 @@ export default function DocumentsPage({ documentId }) {
   const fileInput = useRef(null);
   const document = accessibleDocuments.find((item) => item.id === documentId);
   const isOwner = document?.ownerId === ownerId;
+  const documentClasses = document ? sharedClasses.filter((cls) => cls.materialIds.includes(document.id)) : [];
   function deleteDocument(item) {
     if (item.ownerId !== ownerId) return;
     if (isPreview && data.classes.some((cls) => cls.materialIds.includes(item.id))) {
@@ -124,13 +126,13 @@ export default function DocumentsPage({ documentId }) {
         <Button
           variant="ghost"
           icon="back"
-          onClick={() => navigate(isOwner ? "documents" : "contents")}
+          onClick={() => navigate(isOwner ? "documents" : documentClasses.length ? `classes/${documentClasses[0].id}` : "classes")}
         >
-          {isOwner ? "Tài liệu cá nhân" : "Học liệu lớp học"}
+          {isOwner ? "Tài liệu của tôi" : "Tài liệu lớp"}
         </Button>
         <PageHeading
           title={document.name}
-          description={`${document.type} · ${document.size} · Thêm ngày ${dateLabel(document.date)}`}
+          description={`${isOwner ? "Bạn tải lên" : "Giáo viên chia sẻ · " + documentClasses.map((cls) => cls.name).join(", ")} · ${document.type} · ${document.size} · Thêm ngày ${dateLabel(document.date)}`}
           action={
             <>
               {!isPreview && document.type === "PDF" && (
@@ -214,32 +216,26 @@ export default function DocumentsPage({ documentId }) {
   return (
     <>
       <PageHeading
-        title="Tài liệu cá nhân"
-        description="Chỉ gồm tài liệu do bạn tải lên. Tài liệu giáo viên chia sẻ nằm trong Học liệu."
+        title="Tài liệu của tôi"
+        eyebrow="KHÔNG GIAN CÁ NHÂN"
+        description="PDF, DOCX và TXT bạn tự tải lên, dùng làm nguồn tạo học liệu."
         action={
           <Button icon="upload" onClick={() => setUpload(true)}>
             Thêm tài liệu
           </Button>
         }
       />
-      <div className="ws-info-banner">
+      <div className="ws-scope-banner personal">
         <span className="ws-icon-tile green">
           <Icon name="file" />
         </span>
         <div>
-          <strong>Một tài liệu, nhiều cách học</strong>
+          <strong>Tệp do bạn tải lên</strong>
           <p>
-            Chọn tài liệu để tạo Quiz, Flashcard hoặc hệ thống hóa kiến thức
-            bằng Mindmap.
+            Dùng các tệp này để tạo Quiz, Flashcard và Mindmap. Tài liệu giáo viên chia sẻ nằm trong từng lớp học.
           </p>
         </div>
-        <Button
-          variant="secondary"
-          icon="spark"
-          onClick={() => navigate("generate")}
-        >
-          Tạo học liệu AI
-        </Button>
+        <a href={href("classes")}>Mở tài liệu lớp →</a>
       </div>
       <section className="ws-panel">
         <div className="ws-toolbar">
@@ -276,7 +272,7 @@ export default function DocumentsPage({ documentId }) {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id}>
+                <tr className="ws-clickable" key={item.id} {...clickable(() => viewDocument(item), `Xem tài liệu ${item.name}`, true)}>
                   <td>
                     <button
                       className="ws-table-name"
@@ -289,7 +285,7 @@ export default function DocumentsPage({ documentId }) {
                       </span>
                       <span>
                         {item.name}
-                        <small>Tài liệu cá nhân</small>
+                        <small>Bạn tải lên</small>
                       </span>
                     </button>
                   </td>

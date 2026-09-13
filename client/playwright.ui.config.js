@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "workspace.spec.js",
+  testMatch: ["workspace.spec.js", "dashboard.spec.js"],
   workers: 1,
   retries: 0,
   reporter: "list",

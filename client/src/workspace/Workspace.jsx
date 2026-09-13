@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Brand, Icon } from "../components/Brand.jsx";
 import { logout } from "../lib/api.js";
 import { initialData } from "./data.js";
@@ -21,8 +21,8 @@ import "./colors.css";
 
 const navigation = [
   ["home", "Tổng quan", "grid"],
-  ["documents", "Tài liệu cá nhân", "file"],
-  ["contents", "Học liệu", "spark"],
+  ["documents", "Tài liệu của tôi", "file"],
+  ["contents", "Học liệu của tôi", "spark"],
   ["classes", "Lớp học", "users"],
   ["assignments", "Bài Quiz được giao", "quiz"],
   ["results", "Kết quả học tập", "chart"],
@@ -120,7 +120,7 @@ function Shell({ route, previewRole, onLogout }) {
     if (documentsLoading) page = <Empty title="Đang tải tài liệu nguồn…" />;
     else if (documentsError) page = <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
   }
-  if (["contents", "assignments", "results"].includes(section) || (section === "documents" && route.split("/")[1])) {
+  if (["assignments", "results"].includes(section) || (section === "documents" && route.split("/")[1])) {
     if (classesLoading) page = <Empty title="Đang tải tài liệu lớp…" />;
     else if (classesError) page = <Empty title="Không tải được tài liệu lớp" text={classesError} action={<Button onClick={reloadClasses}>Thử lại</Button>} />;
   }
@@ -135,6 +135,10 @@ function Shell({ route, previewRole, onLogout }) {
         <div className="ws-space-label">KHÔNG GIAN CỦA BẠN</div>
         <nav aria-label="Điều hướng chính">
           {navigation.map(([key, text, icon]) => (
+            <Fragment key={key}>
+            {key === "documents" && <div className="ws-nav-group">CÁ NHÂN</div>}
+            {key === "classes" && <div className="ws-nav-group">LỚP HỌC</div>}
+            {key === "results" && <div className="ws-nav-group">THEO DÕI</div>}
             <a
               key={key}
               className={activeSection === key ? "active" : ""}
@@ -154,6 +158,7 @@ function Shell({ route, previewRole, onLogout }) {
                 </small>
               )}
             </a>
+            </Fragment>
           ))}
         </nav>
         <div className="ws-sidebar-tip">

@@ -35,7 +35,7 @@ test("teacher assigns a frozen Quiz; student resumes, submits and teacher review
       await target.getByLabel("Email", { exact: true }).fill(account.email);
       await target.getByLabel("Mật khẩu", { exact: true }).fill(password);
       await target.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-      await expect(target.getByRole("link", { name: "Tài liệu cá nhân", exact: true })).toBeVisible();
+      await expect(target.getByRole("link", { name: "Tài liệu của tôi", exact: true })).toBeVisible();
     }
     await page.goto("http://localhost:5175/#/assignments/new");
     await page.getByLabel("Tên bài giao").fill("Kiểm tra chương 1");
@@ -76,6 +76,15 @@ test("teacher assigns a frozen Quiz; student resumes, submits and teacher review
     await submitted.getByRole("button", { name: "Xem bài làm", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Chi tiết câu trả lời", exact: true })).toBeVisible();
     await expect(page.locator(".ws-score-ring strong")).toHaveText("5/10");
+    await page.goto("http://localhost:5175/#/home");
+    await expect(page.locator(".ws-stat-link").filter({ hasText: "Học sinh trong các lớp" }).locator("strong")).toHaveText("2");
+    await expect(page.locator(".ws-stat-link").filter({ hasText: "Quiz đã công bố" }).locator("strong")).toHaveText("1");
+    const recent = page.locator("section.ws-panel").filter({ has: page.getByRole("heading", { name: "Bài nộp gần đây", exact: true }) });
+    await expect(recent).toContainText("Kiểm tra chương 1");
+    await expect(recent).toContainText("5/10");
+    await student.goto("http://localhost:5175/#/home");
+    await expect(student.locator(".ws-stat-link").filter({ hasText: "Điểm Quiz trung bình" }).locator("strong")).toHaveText("5/10");
+    await expect(student.locator("section.ws-panel").filter({ has: student.getByRole("heading", { name: "Quiz sắp đến hạn", exact: true }) })).not.toContainText("Kiểm tra chương 1");
   } finally {
     if (source) await request.delete(`${base}/documents/${source.id}`, { headers: teacherHeaders }).catch(() => {});
     await context.close();
