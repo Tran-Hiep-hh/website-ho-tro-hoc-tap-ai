@@ -1,0 +1,79 @@
+name: Deploy EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ec2-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+      EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+    steps:
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EC2_HOST"
+          test -n "$EC2_SSH_KEY"
+          test -n "$EC2_KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Deploy pushed commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            "ec2-user@$EC2_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          set -euo pipefail
+          export PATH=/usr/local/bin:/usr/bin:/bin
+          cd /var/www/website-ho-tro-hoc-tap-ai
+          exec 9>/var/www/website-ho-tro-hoc-tap-ai/.git/deploy.lock
+          flock -n 9
+          test -f server/.env
+          test "$(git branch --show-current)" = main
+          git diff --exit-code --quiet
+          git diff --cached --exit-code --quiet
+          git fetch origin main
+          git merge-base --is-ancestor "$1" origin/main
+          if git merge-base --is-ancestor "$1" HEAD && test "$(git rev-parse HEAD)" != "$1"; then
+            echo 'Skipping older commit: EC2 already has a newer revision.'
+            exit 0
+          fi
+          git merge --ff-only "$1"
+          test "$(git rev-parse HEAD)" = "$1"
+          npm ci
+          npm run build
+          npm run migrate --workspace server
+          sudo -n systemctl restart study-ai
+          for attempt in {1..15}; do
+            if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:4000/api/health/database; then
+              echo
+              echo "Deployed $1"
+              exit 0
+            fi
+            sleep 2
+          done
+          sudo -n journalctl -u study-ai -n 30 --no-pager
+          exit 1
+          REMOTE
+
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts
