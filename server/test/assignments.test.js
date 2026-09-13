@@ -16,6 +16,8 @@ before(async () => {
   await database.query(await readFile(new URL("../../database/init.sql", import.meta.url), "utf8"));
   const migration = await readFile(new URL("../../database/migrations/006_assignments.sql", import.meta.url), "utf8");
   await database.query(migration); await database.query(migration);
+  const durationMigration = await readFile(new URL("../../database/migrations/009_assignment_duration.sql", import.meta.url), "utf8");
+  await database.query(durationMigration); await database.query(durationMigration);
   server = createApp({ authRepository: createAuthRepository(database), documentDatabase: database }).listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${server.address().port}/api`;
@@ -119,6 +121,39 @@ test("Deadline rejects late edits and finalizes saved answers even when the brow
   assert.equal(automatic.score, 0); assert.equal(automatic.status, "SUBMITTED");
   assert.equal((await call(`/assignments/${b.id}/attempts`, "POST", {}, 2)).status, 409);
 });
+test("Per-attempt duration survives resume, caps at class deadline and rejects late answers", async () => {
+  const a = await fixture({ durationMinutes: 15, maxAttempts: 2 });
+  for (const durationMinutes of [0, -1, 1.5, 1441, "30"]) {
+    assert.equal((await call("/assignments", "POST", { ...a, durationMinutes })).status, 400);
+  }
+  const listed = (await call("/assignments", "GET", undefined, 2)).assignments.find((item) => item.id === a.id);
+  assert.equal(listed.durationMinutes, 15);
+  const t = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal(new Date(t.dueAt) - new Date(t.startedAt), 15 * 60000);
+  const resumed = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal(resumed.id, t.id); assert.equal(resumed.dueAt, t.dueAt);
+  await call(`/assignments/attempts/${t.id}/answers`, "PUT", { answers: [0, -1], revision: 0 }, 2);
+  await database.query("UPDATE quiz_attempts SET started_at=NOW()-INTERVAL '16 minutes' WHERE attempt_id=$1", [t.id]);
+  const late = await call(`/assignments/attempts/${t.id}/answers`, "PUT", { answers: [0, 1], revision: 1 }, 2);
+  assert.equal(late.submitted, true); assert.equal(late.attempt.score, 50);
+  assert.deepEqual(late.attempt.answers, [0, -1]);
+  const next = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.notEqual(next.id, t.id);
+  assert.equal(new Date(next.dueAt) - new Date(next.startedAt), 15 * 60000);
+  // Resuming an expired attempt returns its result instead of silently spending another attempt.
+  await database.query("UPDATE quiz_attempts SET started_at=NOW()-INTERVAL '16 minutes' WHERE attempt_id=$1", [next.id]);
+  const expired = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal(expired.submitted, true); assert.equal(expired.result.id, next.id);
+  const b = await fixture({ durationMinutes: 30, dueAt: new Date(Date.now() + 600000).toISOString() });
+  const capped = (await call(`/assignments/${b.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal(capped.dueAt, b.dueAt);
+  const c = await fixture({ durationMinutes: 1 });
+  const closed = (await call(`/assignments/${c.id}/attempts`, "POST", {}, 2)).attempt;
+  await database.query("UPDATE quiz_attempts SET started_at=NOW()-INTERVAL '2 minutes' WHERE attempt_id=$1", [closed.id]);
+  const history = (await call("/assignments", "GET", undefined, 2)).attempts;
+  assert.equal(history.find((item) => item.id === closed.id).status, "SUBMITTED");
+});
+
 test("Quiz notifications are emitted once at publication, only to active members", async () => {
   const draft = await fixture({ status: "DRAFT" });
   const route = `assignments/${draft.id}`;

@@ -4,6 +4,7 @@ import { useWorkspace } from "./WorkspaceContext.jsx";
 import { id } from "./data.js";
 import { Badge, Button, Empty, PageHeading, Progress } from "./ui.jsx";
 import { Icon } from "../components/Brand.jsx";
+import { studentAssignmentStatus } from "./assignmentStatus.js";
 
 export default function QuizPlayer({ mode, targetId }) {
   const { data, setData, user, isTeacher, navigate, notify, confirm, reloadAssignments } =
@@ -22,6 +23,7 @@ export default function QuizPlayer({ mode, targetId }) {
   const [busy, setBusy] = useState(false);
   const persisted = Boolean(content?.persisted || assignment?.persisted);
   const [saveError, setSaveError] = useState("");
+  const [pendingAnswers, setPendingAnswers] = useState(null);
   const questions = serverAttempt?.questions ?? assignment?.questions ?? content?.questions ?? [];
   const title = serverAttempt?.title ?? assignment?.title ?? content?.title;
   const questionCount = serverAttempt?.questions.length ?? assignment?.questionCount ?? questions.length;
@@ -32,6 +34,12 @@ export default function QuizPlayer({ mode, targetId }) {
   const [index, setIndex] = useState(0);
   const [started, setStarted] = useState(false);
   const [remaining, setRemaining] = useState(null);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (started || !assignment) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [started, assignment]);
   const submitted = useRef(false);
   const submitRef = useRef(null);
   const attemptCount = data.attempts.filter(
@@ -43,18 +51,27 @@ export default function QuizPlayer({ mode, targetId }) {
       assignment &&
       !isTeacher &&
       assignment.status === "PUBLISHED" &&
-      new Date(assignment.startAt) <= new Date() &&
-      new Date(assignment.dueAt) > new Date() &&
+      new Date(assignment.startAt).getTime() <= now &&
+      new Date(assignment.dueAt).getTime() > now &&
       (assignment.inProgress || (assignment.attemptsUsed ?? attemptCount) < assignment.maxAttempts) &&
       data.classes.some((cls) => cls.id === assignment.classId && cls.joined),
     );
   async function start() {
     if (busy) return;
-    if (!persisted) { setStarted(true); return; }
+    if (!persisted) {
+      if (assignment) {
+        const dueAt = data.draftDeadlines?.[key] ?? new Date(Math.min(new Date(assignment.dueAt).getTime(), assignment.durationMinutes ? Date.now() + assignment.durationMinutes * 60000 : Infinity)).toISOString();
+        setServerAttempt({ questions, dueAt, clockOffset: 0 });
+        setData((old) => ({ ...old, draftDeadlines: { ...old.draftDeadlines, [key]: dueAt } }));
+      }
+      setStarted(true); return;
+    }
     setBusy(true);
     try {
       const result = await apiRequest(assignment ? `/assignments/${assignment.id}/attempts` : `/quizzes/${content.id}/attempts`, { method: "POST", body: {} });
+      if (result.attempt.submitted) { await acceptResult(result.attempt.result); return; }
       setServerAttempt({ ...result.attempt, clockOffset: result.attempt.serverNow ? new Date(result.attempt.serverNow).getTime() - Date.now() : 0 }); setAnswers(result.attempt.answers ?? Array(result.attempt.questions.length).fill(-1)); setStarted(true);
+      setPendingAnswers(null); setSaveError("");
     } catch (error) { notify(error.message); }
     finally { setBusy(false); }
   }
@@ -66,11 +83,11 @@ export default function QuizPlayer({ mode, targetId }) {
     }
     if (busy) return;
     const previous = answers;
-    setAnswers(next); setBusy(true); setSaveError("");
+    setAnswers(next); setPendingAnswers(next); setBusy(true); setSaveError("");
     try {
       const result = await apiRequest(`/assignments/attempts/${serverAttempt.id}/answers`, { method: "PUT", body: { answers: next, revision: serverAttempt.revision } });
       if (result.submitted) { await acceptResult(result.attempt); return; }
-      setAnswers(next); setServerAttempt((old) => ({ ...old, revision: result.revision }));
+      setAnswers(next); setPendingAnswers(null); setServerAttempt((old) => ({ ...old, revision: result.revision }));
     } catch (error) { setAnswers(previous); setSaveError(error.message); }
     finally { setBusy(false); }
   }
@@ -110,17 +127,20 @@ export default function QuizPlayer({ mode, targetId }) {
     };
     setData((old) => {
       const drafts = { ...old.draftAnswers };
+      const deadlines = { ...old.draftDeadlines };
       delete drafts[key];
+      delete deadlines[key];
       return {
         ...old,
         attempts: [...old.attempts, result],
         draftAnswers: drafts,
+        draftDeadlines: deadlines,
       };
     });
     if (automatic) {
       confirm(null);
       notify(
-        "Đã đến hạn nộp. Các câu trả lời đã được chấm trong bản xem trước.",
+        "Đã hết giờ làm bài. Các câu trả lời đã được chấm trong bản xem trước.",
       );
     }
     navigate(`results/attempt/${result.id}`);
@@ -139,12 +159,12 @@ export default function QuizPlayer({ mode, targetId }) {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [started, assignment]);
+  }, [started, assignment, serverAttempt?.dueAt, serverAttempt?.clockOffset]);
   if (!questionCount || (!started && !canStart))
     return (
       <Empty
         title="Chưa thể làm bài Quiz này"
-        text="Kiểm tra thời gian mở bài, số lượt làm hoặc tư cách thành viên của lớp."
+        text={assignment ? `${studentAssignmentStatus(assignment, data.attempts, now)[0]}. Xem chi tiết bài giao để kiểm tra thời gian và lượt làm.` : "Quiz không còn khả dụng."}
         action={
           <Button
             onClick={() => navigate(assignment ? "assignments" : "contents")}
@@ -171,6 +191,7 @@ export default function QuizPlayer({ mode, targetId }) {
             <Icon name="quiz" size={35} />
           </span>
           <h2>Sẵn sàng kiểm tra kiến thức?</h2>
+          {assignment && <p><strong>{assignment.durationMinutes ? `Thời gian mỗi lượt: ${assignment.durationMinutes} phút.` : "Thời gian làm bài theo hạn nộp của lớp."}</strong> Bài sẽ kết thúc sớm hơn nếu đến hạn nộp. Đồng hồ tiếp tục chạy khi bạn đóng hoặc tải lại trang.</p>}
           <div className="ws-quiz-intro-stats">
             <span>
               <strong>{questionCount}</strong>Câu hỏi
@@ -186,7 +207,7 @@ export default function QuizPlayer({ mode, targetId }) {
             </span>
           </div>
           <p>
-            {assignment?.persisted ? "Mỗi câu trả lời được lưu trên máy chủ. Tải lại trang và bấm Bắt đầu Quiz để tiếp tục lượt đang làm. Hết hạn sẽ chấm các lựa chọn đã lưu." : content?.persisted ? "Khi nộp bài, máy chủ chấm điểm và lưu kết quả. Câu trả lời chưa nộp chỉ giữ trong trang hiện tại; tải lại trang sẽ phải chọn lại." : "Câu trả lời được lưu trong phiên xem này. Bạn có thể quay lại các câu trước khi nộp bài."}
+            {assignment?.persisted ? "Mỗi câu trả lời được lưu trên máy chủ. Khi quay lại, bạn có thể tiếp tục lượt đang làm mà không mất thêm lượt. Hết hạn sẽ chấm các lựa chọn đã lưu." : content?.persisted ? "Khi nộp bài, máy chủ chấm điểm và lưu kết quả. Câu trả lời chưa nộp chỉ giữ trong trang hiện tại; tải lại trang sẽ phải chọn lại." : "Câu trả lời được lưu trong phiên xem này. Bạn có thể quay lại các câu trước khi nộp bài."}
           </p>
           <div className="ws-actions">
             <Button
@@ -202,7 +223,7 @@ export default function QuizPlayer({ mode, targetId }) {
               Quay lại
             </Button>
             <Button icon="arrow" disabled={busy} onClick={start}>
-              Bắt đầu Quiz
+              {assignment?.inProgress ? "Tiếp tục Quiz" : "Bắt đầu Quiz"}
             </Button>
           </div>
         </section>
@@ -235,7 +256,11 @@ export default function QuizPlayer({ mode, targetId }) {
             <span className="ws-muted">Trắc nghiệm một lựa chọn</span>
           </div>
           <h2>{question.text}</h2>
-          {saveError && <p className="ws-inline-error" role="alert">Chưa lưu lựa chọn mới: {saveError}</p>}
+          {saveError && <div className="ws-inline-error" role="alert">
+            <p>Chưa lưu lựa chọn mới: {saveError}</p>
+            <Button variant="secondary" disabled={busy} onClick={() => saveAnswer(pendingAnswers)}>Thử lưu lại</Button>
+            <Button variant="ghost" disabled={busy} onClick={start}>Tải bài đã lưu</Button>
+          </div>}
           <fieldset className="ws-answer-options" disabled={busy}>
             <legend className="ws-sr-only">Chọn đáp án</legend>
             {question.options.map((option, optionIndex) => (
@@ -301,7 +326,7 @@ export default function QuizPlayer({ mode, targetId }) {
           </div>
           <Button
             icon="check"
-            disabled={busy}
+            disabled={busy || Boolean(pendingAnswers)}
             onClick={() =>
               confirm({
                 title: "Nộp bài Quiz?",
@@ -310,7 +335,7 @@ export default function QuizPlayer({ mode, targetId }) {
                     ? `Bạn còn ${questions.length - answered} câu chưa trả lời. Những câu này sẽ được tính là sai.`
                     : "Bạn đã trả lời tất cả câu hỏi. Xác nhận để xem kết quả.",
                 label: "Nộp bài",
-                action: () => submit(),
+                action: () => submitRef.current(),
               })
             }
           >

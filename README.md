@@ -95,6 +95,12 @@ Có thể đặt `PLAYWRIGHT_CHANNEL=chrome` nếu dùng Google Chrome. Báo cá
 
 Migration `database/migrations/001_auth.sql` bổ sung trạng thái tài khoản và mã phiên cho database đã có. Lệnh migrate có thể chạy lại và không xóa dữ liệu.
 
+## Thời lượng Quiz giao cho lớp
+
+Khi giao Quiz, nhập **Thời gian làm bài (phút)** từ 1–1440 (mặc định 30); để trống để chỉ áp dụng hạn nộp của lớp. Mỗi lượt tính từ thời điểm bắt đầu trên máy chủ, không đặt lại khi tải lại trang. Hạn kết thúc là thời điểm sớm hơn giữa hết thời lượng và hạn nộp của lớp. Hết giờ chỉ chấm các đáp án đã lưu. Nếu đóng trình duyệt, lượt hết giờ được hoàn tất khi truy cập API bài giao tiếp theo.
+
+Database hiện có cần chạy `npm run migrate --workspace server` để thêm `quiz_assignments.duration_minutes`. Các bài giao cũ có giá trị trống và giữ hạn nộp cũ; migration không xóa dữ liệu.
+
 ## Tài liệu của tôi với dữ liệu thật
 
 Đăng nhập tài khoản thật rồi mở **Tài liệu của tôi**. Hệ thống hỗ trợ tải PDF/DOCX/TXT (tối đa 10 MB/tệp), trích xuất văn bản, tìm kiếm/lọc, xem nội dung, tải tệp gốc và xóa. Dữ liệu vẫn còn sau khi tải lại trang. PDF dạng ảnh chưa có OCR; tệp không có văn bản được đánh dấu thất bại và vẫn có thể tải xuống hoặc xóa. TXT dùng UTF-8.

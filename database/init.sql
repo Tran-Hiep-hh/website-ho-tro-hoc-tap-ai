@@ -164,6 +164,7 @@ CREATE TABLE quiz_assignments (
     start_at TIMESTAMPTZ NOT NULL,
     due_at TIMESTAMPTZ NOT NULL,
     max_attempts INTEGER NOT NULL CHECK (max_attempts > 0),
+    duration_minutes INTEGER CHECK (duration_minutes BETWEEN 1 AND 1440),
     show_answers BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED'
         CHECK (status IN ('DRAFT', 'PUBLISHED', 'CANCELLED')),

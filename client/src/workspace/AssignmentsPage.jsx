@@ -1,5 +1,7 @@
 import { scoreLabel } from "./score.js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { assignmentStatus, studentAssignmentStatus } from "./assignmentStatus.js";
+export { assignmentStatus } from "./assignmentStatus.js";
 import { apiRequest } from "../lib/api.js";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
@@ -14,13 +16,6 @@ import {
   Tabs,
 } from "./ui.jsx";
 
-export function assignmentStatus(item) {
-  if (item.status === "DRAFT") return ["Bản nháp", "gray"];
-  if (item.status === "CANCELLED") return ["Đã hủy", "gray"];
-  if (new Date(item.startAt) > new Date()) return ["Sắp mở", "blue"];
-  if (new Date(item.dueAt) < new Date()) return ["Đã kết thúc", "gray"];
-  return ["Đang mở", "green"];
-}
 const inputDate = (value) => {
   const date = new Date(value);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
@@ -36,6 +31,12 @@ export default function AssignmentsPage({ segments = [] }) {
   const [status, setStatus] = useState("PUBLISHED");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const displayStatus = (item) => isTeacher ? assignmentStatus(item, now) : studentAssignmentStatus(item, data.attempts, now);
   async function changeStatus(value) {
     if (isPreview) { update("assignments", assignment.id, { status: value }); return; }
     setBusy(true);
@@ -52,6 +53,7 @@ export default function AssignmentsPage({ segments = [] }) {
   async function createAssignment(event) {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
+    values.durationMinutes = values.durationMinutes === "" ? null : Number(values.durationMinutes);
     if (new Date(values.dueAt) <= new Date(values.startAt)) {
       setError("Hạn nộp phải sau thời gian mở bài.");
       return;
@@ -200,6 +202,10 @@ export default function AssignmentsPage({ segments = [] }) {
                 required
               />
             </Field>
+            <Field label="Thời gian làm bài (phút)">
+              <input aria-label="Thời gian làm bài (phút)" aria-describedby="duration-hint" name="durationMinutes" type="number" min={1} max={1440} step={1} defaultValue={30} placeholder="Không giới hạn riêng" />
+              <small id="duration-hint">Tính từ lúc bắt đầu mỗi lượt. Để trống nếu chỉ áp dụng hạn nộp của lớp.</small>
+            </Field>
             <Field label="Trạng thái">
               <select
                 value={status}
@@ -247,12 +253,12 @@ export default function AssignmentsPage({ segments = [] }) {
           !availableClasses.some((cls) => cls.id === assignment.classId)))
     )
       return <Empty title="Bài giao không khả dụng" />;
-    const [label, tone] = assignmentStatus(assignment);
+    const [label, tone] = displayStatus(assignment);
     const attempts = data.attempts.filter(
       (item) => item.assignmentId === assignment.id,
     );
     const canStart =
-      label === "Đang mở" && (assignment.inProgress || (assignment.attemptsUsed ?? attempts.length) < assignment.maxAttempts);
+      ["Đang mở", "Đang làm"].includes(label);
     return (
       <>
         {!isPreview && <Button variant="secondary" onClick={reloadAssignments}>Làm mới</Button>}
@@ -283,6 +289,8 @@ export default function AssignmentsPage({ segments = [] }) {
               <dd>{new Date(assignment.dueAt).toLocaleString("vi-VN")}</dd>
               <dt>Số lần được làm</dt>
               <dd>{assignment.maxAttempts} lượt</dd>
+              <dt>Thời gian mỗi lượt</dt>
+              <dd>{assignment.durationMinutes ? `${assignment.durationMinutes} phút` : "Theo hạn nộp của lớp"}</dd>
               <dt>Hiển thị đáp án</dt>
               <dd>
                 {assignment.showAnswers ? "Sau khi nộp bài" : "Không công bố"}
@@ -345,9 +353,7 @@ export default function AssignmentsPage({ segments = [] }) {
                   >
                     {canStart
                       ? assignment.inProgress ? "Tiếp tục làm bài" : "Bắt đầu làm bài"
-                      : (assignment.attemptsUsed ?? attempts.length) >= assignment.maxAttempts
-                        ? "Đã hết lượt làm"
-                        : label}
+                      : label}
                   </Button>
                 </div>
               </>
@@ -358,7 +364,8 @@ export default function AssignmentsPage({ segments = [] }) {
             <ul className="ws-guidelines">
               <li>Mỗi câu hỏi có một đáp án đúng.</li>
               <li>{isPreview ? "Câu trả lời được giữ trong phiên xem trước." : "Mỗi lựa chọn được lưu trên máy chủ. Chờ lưu xong trước khi đóng trang."}</li>
-              <li>Khi hết hạn, bài được chấm từ các câu trả lời đã lưu; không nhận thay đổi sau hạn.</li>
+              <li>Thời gian bắt đầu khi bấm Bắt đầu Quiz, tiếp tục chạy kể cả khi đóng trang. Bài kết thúc khi hết thời lượng hoặc đến hạn nộp của lớp, tùy thời điểm nào đến trước.</li>
+              <li>Khi hết giờ, bài được chấm từ các câu trả lời đã lưu; không nhận thay đổi sau hạn.</li>
               <li>{isPreview ? "Kết quả ở đây là kết quả mẫu trong trình duyệt." : "Điểm được chấm trên máy chủ và hiển thị theo thang 10."}</li>
             </ul>
             <h2>Lịch sử làm bài</h2>
@@ -394,7 +401,7 @@ export default function AssignmentsPage({ segments = [] }) {
     (item) =>
       availableClasses.some((cls) => cls.id === item.classId) &&
       (isTeacher || item.status === "PUBLISHED") &&
-      (filter === "ALL" || item.status === filter) &&
+      (filter === "ALL" || (isTeacher ? item.status === filter : displayStatus(item)[0] === filter)) &&
       item.title
         .toLocaleLowerCase("vi")
         .includes(query.toLocaleLowerCase("vi")),
@@ -429,7 +436,11 @@ export default function AssignmentsPage({ segments = [] }) {
           <Tabs
             items={[
               ["ALL", "Tất cả"],
-              ["PUBLISHED", "Đã công bố"],
+              ...(isTeacher ? [["PUBLISHED", "Đã công bố"]] : [
+                ["Đang mở", "Đang mở"], ["Đang làm", "Đang làm"],
+                ["Sắp mở", "Sắp mở"], ["Đã kết thúc", "Đã kết thúc"],
+                ["Đã hết lượt làm", "Hết lượt"],
+              ]),
               ...(isTeacher
                 ? [
                     ["DRAFT", "Bản nháp"],
@@ -464,7 +475,7 @@ export default function AssignmentsPage({ segments = [] }) {
                     <strong>{item.title}</strong>
                     <small>
                       {item.questionCount ?? item.questions.length} câu hỏi · {item.maxAttempts} lượt
-                      làm
+                      làm · {item.durationMinutes ? `${item.durationMinutes} phút/lượt` : "Theo hạn nộp"}
                     </small>
                   </td>
                   <td>
@@ -472,8 +483,8 @@ export default function AssignmentsPage({ segments = [] }) {
                   </td>
                   <td>{dateLabel(item.dueAt)}</td>
                   <td>
-                    <Badge tone={assignmentStatus(item)[1]}>
-                      {assignmentStatus(item)[0]}
+                    <Badge tone={displayStatus(item)[1]}>
+                      {displayStatus(item)[0]}
                     </Badge>
                   </td>
                   <td>

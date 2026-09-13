@@ -9,6 +9,10 @@ import { notifyClass } from "../services/notificationService.js";
 const validId = (value) => /^[1-9]\d{0,18}$/.test(String(value)) && BigInt(value) <= 9223372036854775807n;
 const missing = () => httpError(404, "Không tìm thấy bài giao hoặc bạn không có quyền truy cập.");
 const safeQuestions = (items) => items.map(({ answer, explanation, source, optionIds, ...q }) => q);
+const attemptDeadline = (assignment, attempt) => new Date(Math.min(
+  new Date(assignment.due_at).getTime(),
+  assignment.duration_minutes == null ? Infinity : new Date(attempt.started_at).getTime() + assignment.duration_minutes * 60000,
+));
 async function questions(db, version) {
   const { rows } = await db.query("SELECT q.*,json_agg(json_build_object('id',o.option_id::text,'text',o.option_text,'correct',o.is_correct) ORDER BY o.display_order) AS options FROM quiz_questions q JOIN answer_options o USING(question_id) WHERE quiz_version_id=$1 GROUP BY q.question_id ORDER BY q.display_order", [version]);
   return rows.map((q) => ({ id: String(q.question_id), text: q.question_text, options: q.options.map((o) => o.text), optionIds: q.options.map((o) => o.id), answer: q.options.findIndex((o) => o.correct), explanation: q.explanation, source: q.source_label ?? "" }));
@@ -65,11 +69,14 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
     await transaction(async (db) => {
       const { rows } = await db.query("SELECT * FROM quiz_assignments WHERE assignment_id=$1 FOR UPDATE", [id]);
       const item = rows[0];
-      if (!item || new Date(item.due_at).getTime() > Date.now()) return;
+      if (!item) return;
       const attempts = await db.query("SELECT * FROM quiz_attempts WHERE assignment_id=$1 AND status='IN_PROGRESS' FOR UPDATE", [id]);
       if (!attempts.rowCount) return;
       const all = await questions(db, item.quiz_version_id);
-      for (const attempt of attempts.rows) await finish(db, attempt, all, item.due_at);
+      for (const attempt of attempts.rows) {
+        const deadline = attemptDeadline(item, attempt);
+        if (deadline.getTime() <= Date.now()) await finish(db, attempt, all, deadline);
+      }
     });
   }
   router.get("/", async (req, res) => {
@@ -80,7 +87,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
     for (const a of visible.rows) {
       const all = await questions(database, a.quiz_version_id);
       const counts = await database.query("SELECT COUNT(*)::integer AS used,BOOL_OR(status='IN_PROGRESS') AS ongoing FROM quiz_attempts WHERE assignment_id=$1 AND user_id=$2", [a.assignment_id, req.user.userId]);
-      assignments.push({ id: String(a.assignment_id), persisted: true, classId: String(a.class_id), contentId: String(a.quiz_id), versionId: String(a.quiz_version_id), title: a.title, startAt: a.start_at, dueAt: a.due_at, maxAttempts: a.max_attempts, showAnswers: a.show_answers, status: a.status, questionCount: all.length, questions: req.user.role === "TEACHER" ? all : [], attemptsUsed: counts.rows[0].used, inProgress: Boolean(counts.rows[0].ongoing) });
+      assignments.push({ id: String(a.assignment_id), persisted: true, classId: String(a.class_id), contentId: String(a.quiz_id), versionId: String(a.quiz_version_id), title: a.title, startAt: a.start_at, dueAt: a.due_at, maxAttempts: a.max_attempts, durationMinutes: a.duration_minutes, showAnswers: a.show_answers, status: a.status, questionCount: all.length, questions: req.user.role === "TEACHER" ? all : [], attemptsUsed: counts.rows[0].used, inProgress: Boolean(counts.rows[0].ongoing) });
     }
     const { rows } = await database.query("SELECT t.*,a.title,a.show_answers,v.quiz_id,c.teacher_id,u.full_name,u.email FROM quiz_attempts t JOIN quiz_assignments a USING(assignment_id) JOIN quiz_versions v ON v.quiz_version_id=t.quiz_version_id JOIN classrooms c ON c.class_id=a.class_id JOIN users u ON u.user_id=t.user_id WHERE t.status='SUBMITTED' AND (t.user_id=$1 OR c.teacher_id=$1) ORDER BY t.submitted_at", [req.user.userId]);
     const attempts = [], classAttempts = [];
@@ -95,6 +102,8 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
   router.post("/", async (req, res) => {
     teacher(req);
     const b = req.body ?? {}, start = new Date(b.startAt), due = new Date(b.dueAt);
+    const duration = b.durationMinutes ?? null;
+    if (duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 1440)) throw httpError(400, "Thời gian làm bài phải là số nguyên từ 1 đến 1440 phút.");
     if (typeof b.title !== "string" || !b.title.trim() || b.title.length > 150 || b.title.includes("\0") || !validId(b.contentId) || !validId(b.versionId) || !Number.isFinite(start.getTime()) || !Number.isFinite(due.getTime()) || due <= start || due.getTime() <= Date.now() || !Number.isInteger(b.maxAttempts) || b.maxAttempts < 1 || b.maxAttempts > 10 || typeof b.showAnswers !== "boolean" || !["DRAFT", "PUBLISHED"].includes(b.status)) throw httpError(400, "Thiết lập bài giao không hợp lệ. Kiểm tra tên, lịch và số lượt 1–10.");
     const id = await transaction(async (db) => {
       await classAccess(db, req, b.classId, true);
@@ -104,7 +113,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       if (String(versions.rows[0]?.quiz_version_id) !== String(b.versionId)) throw httpError(409, "Quiz đã thay đổi. Tải lại học liệu trước khi giao bài.");
       const items = await questions(db, b.versionId);
       if (!items.length || items.some((q) => q.options.length !== 4 || q.answer < 0)) throw httpError(400, "Quiz chưa có câu hỏi hợp lệ.");
-      const { rows } = await db.query("INSERT INTO quiz_assignments(class_id,quiz_version_id,title,start_at,due_at,max_attempts,show_answers,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING assignment_id", [b.classId, b.versionId, b.title.trim(), start, due, b.maxAttempts, b.showAnswers, b.status]);
+      const { rows } = await db.query("INSERT INTO quiz_assignments(class_id,quiz_version_id,title,start_at,due_at,max_attempts,show_answers,status,duration_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING assignment_id", [b.classId, b.versionId, b.title.trim(), start, due, b.maxAttempts, b.showAnswers, b.status, duration]);
       if (b.status === "PUBLISHED") await notifyClass(db, b.classId, "Quiz mới được giao", b.title.trim(), `assignments/${rows[0].assignment_id}`, "quiz");
       return String(rows[0].assignment_id);
     }); res.status(201).json({ success: true, id });
@@ -127,13 +136,19 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       if (a.status !== "PUBLISHED" || now < new Date(a.start_at).getTime() || now >= new Date(a.due_at).getTime()) throw httpError(409, "Bài giao chưa mở, đã hết hạn hoặc đã hủy.");
       let { rows } = await db.query("SELECT * FROM quiz_attempts WHERE assignment_id=$1 AND user_id=$2 ORDER BY attempt_number DESC", [a.assignment_id, req.user.userId]);
       let row = rows.find((r) => r.status === "IN_PROGRESS");
+      if (row && attemptDeadline(a, row).getTime() <= now) {
+        const items = await questions(db, a.quiz_version_id);
+        row = await finish(db, row, items, attemptDeadline(a, row));
+        const version = await db.query("SELECT quiz_id FROM quiz_versions WHERE quiz_version_id=$1", [a.quiz_version_id]);
+        return { submitted: true, result: await result(db, row, { ...a, quiz_id: version.rows[0].quiz_id }, { full_name: req.user.fullName }, a.show_answers) };
+      }
       if (!row) {
         if (rows.length >= a.max_attempts) throw httpError(409, "Bạn đã dùng hết lượt làm bài.");
         const inserted = await db.query("INSERT INTO quiz_attempts(user_id,quiz_version_id,assignment_id,attempt_number,started_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *", [req.user.userId, a.quiz_version_id, a.assignment_id, rows.length + 1]);
         row = inserted.rows[0];
       }
       const items = await questions(db, a.quiz_version_id);
-      return { id: String(row.attempt_id), title: a.title, questions: safeQuestions(items), answers: await answers(db, row, items), revision: row.answer_revision, dueAt: a.due_at, serverNow: new Date().toISOString() };
+      return { id: String(row.attempt_id), title: a.title, questions: safeQuestions(items), answers: await answers(db, row, items), revision: row.answer_revision, dueAt: attemptDeadline(a, row), startedAt: row.started_at, serverNow: new Date().toISOString() };
     }); res.json({ success: true, attempt });
   });
   async function writeAttempt(req, submit) {
@@ -149,8 +164,8 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       const user = { full_name: req.user.fullName };
       if (row.status === "SUBMITTED") return { submitted: true, attempt: await result(db, row, a, user, a.show_answers) };
       const now = Date.now();
-      if (now >= new Date(a.due_at).getTime()) {
-        row = await finish(db, row, items, a.due_at);
+      if (now >= attemptDeadline(a, row).getTime()) {
+        row = await finish(db, row, items, attemptDeadline(a, row));
         return { submitted: true, attempt: await result(db, row, a, user, a.show_answers) };
       }
       if (a.status !== "PUBLISHED" || now < new Date(a.start_at).getTime()) throw httpError(409, "Bài giao không còn mở.");
