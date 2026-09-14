@@ -5,6 +5,8 @@ import { createAuthService } from "../services/authService.js";
 import { requireAuth, protectAuthMutation, authRateLimit } from "../middlewares/auth.js";
 import { httpError } from "../utils/httpError.js";
 import { generateQuiz } from "../services/quizGenerator.js";
+import { generationSettings } from "../services/aiMaterialGenerator.js";
+import { aiError } from "../utils/aiError.js";
 
 const notFound = () => httpError(404, "Không tìm thấy Quiz hoặc lượt làm của bạn.");
 const difficulties = { "Dễ": "EASY", "Trung bình": "MEDIUM", "Khó": "HARD" };
@@ -20,7 +22,7 @@ function settings(body = {}) {
   if (!Array.isArray(body.sources) || !body.sources.length || body.sources.length > 10 || !body.sources.every(validId)) throw httpError(400, "Chọn từ 1 đến 10 tài liệu nguồn.");
   return { title, difficulty: body.difficulty, sources: [...new Set(body.sources.map(String))], contentRequest: text(body.contentRequest ?? "", 3000, false) };
 }
-function validateQuestions(questions) {
+export function validateQuestions(questions) {
   if (!Array.isArray(questions) || !questions.length || questions.length > 50) throw httpError(400, "Quiz cần từ 1 đến 50 câu hỏi.");
   return questions.map((q) => {
     if (!q || !Array.isArray(q.options) || q.options.length !== 4 || !Number.isInteger(q.answer) || q.answer < 0 || q.answer > 3) throw httpError(400, "Mỗi câu cần 4 lựa chọn và 1 đáp án đúng.");
@@ -42,8 +44,9 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
     finally { db.release(); }
   }
   async function sources(db, owner, ids) {
-    const result = await db.query("SELECT document_id FROM source_documents WHERE document_id=ANY($1::bigint[]) AND owner_id=$2 AND status='READY' AND length(trim(extracted_text)) > 0 FOR SHARE", [ids, owner]);
+    const result = await db.query("SELECT document_id,file_name,extracted_text FROM source_documents WHERE document_id=ANY($1::bigint[]) AND owner_id=$2 AND status='READY' AND length(trim(extracted_text)) > 0 FOR SHARE", [ids, owner]);
     if (result.rowCount !== ids.length) throw httpError(400, "Tài liệu nguồn phải thuộc về bạn, còn tồn tại và có văn bản sẵn sàng.");
+    return ids.map((id) => result.rows.find((row) => String(row.document_id) === id));
   }
   async function owned(db, owner, id, lock = false) {
     if (!validId(id)) throw notFound();
@@ -57,7 +60,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
   async function content(db, row) {
     const { rows: versions } = await db.query("SELECT * FROM quiz_versions WHERE quiz_id=$1 ORDER BY version_number DESC LIMIT 1", [row.content_id]);
     const { rows: docs } = await db.query("SELECT document_id FROM content_sources WHERE content_id=$1 ORDER BY document_id", [row.content_id]);
-    return { id: String(row.content_id), persisted: true, type: "QUIZ", title: row.title, status: row.status, difficulty: Object.keys(difficulties).find((key) => difficulties[key] === row.difficulty), createdAt: row.created_at, sources: docs.map((d) => String(d.document_id)), contentRequest: row.generation_settings.contentRequest ?? "", generationMode: row.generation_settings.mode ?? "MOCK", versionId: String(versions[0].quiz_version_id), questions: await questions(db, versions[0].quiz_version_id) };
+    return { id: String(row.content_id), persisted: true, type: "QUIZ", title: row.title, status: row.status, difficulty: Object.keys(difficulties).find((key) => difficulties[key] === row.difficulty), createdAt: row.created_at, sources: docs.map((d) => String(d.document_id)), contentRequest: row.generation_settings.contentRequest ?? "", generationMode: row.generation_settings.mode ?? "MOCK", generationModel: row.generation_settings.model, versionId: String(versions[0].quiz_version_id), questions: await questions(db, versions[0].quiz_version_id) };
   }
   async function writeVersion(db, quizId, title, items) {
     const { rows } = await db.query("INSERT INTO quiz_versions (quiz_id,version_number,title) SELECT $1,COALESCE(MAX(version_number),0)+1,$2 FROM quiz_versions WHERE quiz_id=$1 RETURNING quiz_version_id", [quizId, title]);
@@ -81,8 +84,13 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
     const input = settings(req.body);
     const quantity = Number(req.body.quantity ?? 5);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) throw httpError(400, "Chọn từ 1 đến 20 câu hỏi.");
-    await sources(database, req.user.userId, input.sources);
-    res.json({ success: true, content: await generateQuiz({ ...input, quantity }) });
+    const documents = await sources(database, req.user.userId, input.sources);
+    const generated = await generateQuiz({ ...input, quantity, documents });
+    try {
+      generated.questions = validateQuestions(generated.questions);
+      if (generated.questions.length !== quantity) throw new Error("quantity");
+    } catch { throw aiError(502, "AI trả về câu hỏi không hợp lệ hoặc chưa đủ số lượng. Hãy giảm số câu hoặc thử lại."); }
+    res.json({ success: true, content: generated });
   });
   router.get("/", async (req, res) => {
     const { rows } = await database.query("SELECT * FROM generated_contents WHERE owner_id=$1 AND content_type='QUIZ' AND status <> 'DELETED' ORDER BY created_at DESC", [req.user.userId]);
@@ -96,7 +104,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
     const input = settings(req.body), items = validateQuestions(req.body.questions);
     const result = await transaction(async (db) => {
       await sources(db, req.user.userId, input.sources);
-      const { rows } = await db.query("INSERT INTO generated_contents (owner_id,content_type,title,difficulty,status,generation_settings) VALUES ($1,'QUIZ',$2,$3,'READY',$4) RETURNING *", [req.user.userId, input.title, difficulties[input.difficulty], { mode: "MOCK", contentRequest: input.contentRequest }]);
+      const { rows } = await db.query("INSERT INTO generated_contents (owner_id,content_type,title,difficulty,status,generation_settings) VALUES ($1,'QUIZ',$2,$3,'READY',$4) RETURNING *", [req.user.userId, input.title, difficulties[input.difficulty], { ...generationSettings(req.body), contentRequest: input.contentRequest }]);
       for (const id of input.sources) await db.query("INSERT INTO content_sources (content_id,document_id) VALUES ($1,$2)", [rows[0].content_id, id]);
       await writeVersion(db, rows[0].content_id, input.title, items);
       return content(db, rows[0]);

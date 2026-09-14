@@ -1,5 +1,8 @@
-// Deterministic fixtures; this provider makes no external API calls.
+import { providerConfig } from "./aiProvider.js";
+import { generateAIMaterial } from "./aiMaterialGenerator.js";
 export async function generateStudyMaterial(input) {
+  if (providerConfig().provider !== "mock") return generateAIMaterial(input);
+  const { documents, ...settings } = input;
   const cards = [
     { front: "Khóa chính", back: "Xác định duy nhất mỗi bản ghi trong bảng.", keyword: "Khóa" },
     { front: "Khóa ngoại", back: "Tham chiếu đến khóa của bảng được liên kết.", keyword: "Liên kết" },
@@ -17,7 +20,7 @@ export async function generateStudyMaterial(input) {
     { id: "query", parent: "sql", label: "SELECT và JOIN" },
     { id: "normal", parent: "design", label: "Chuẩn hóa" },
   ];
-  return { ...input, generationMode: "MOCK", ...(input.type === "FLASHCARD"
+  return { ...settings, generationMode: "MOCK", ...(input.type === "FLASHCARD"
     ? { cards: Array.from({ length: input.quantity }, (_, index) => ({ ...cards[index % cards.length] })) }
     : { nodes: input.detail === "overview" ? nodes.filter((node) => !node.parent || node.parent === "root") : nodes }) };
 }

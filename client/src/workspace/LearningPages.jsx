@@ -96,6 +96,7 @@ export function LibraryPage() {
               <div className="ws-card-labels">
                 <Badge tone="blue">{item.type === "QUIZ" ? isTeacher ? "Bản gốc · Tự luyện" : "Quiz tự luyện" : "Ôn tập cá nhân"}</Badge>
                 {item.generationMode === "MOCK" && <Badge tone="orange">AI giả lập · Đã lưu</Badge>}
+                {["DEEPSEEK", "OPENROUTER"].includes(item.generationMode) && <Badge tone="purple">AI · {item.generationMode === "DEEPSEEK" ? "DeepSeek" : "OpenRouter"}</Badge>}
                 <Badge
                   tone={
                     item.type === "QUIZ"
@@ -249,7 +250,9 @@ export function GeneratePage({ sourceId }) {
         <div className="ws-info-banner">
           <Icon name="spark" />
           <p>
-            {preview.type === "QUIZ" ? "AI giả lập: câu hỏi minh họa cố định về cơ sở dữ liệu, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. Quiz luôn có 4 lựa chọn và 1 đáp án đúng. Khi lưu Quiz bằng tài khoản thật, nội dung được lưu vào database." : `AI giả lập: nội dung minh họa cố định, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. ${isPreview ? "Bản xem trước chỉ lưu trong phiên xem." : "Flashcard, Mindmap và tiến độ được lưu trên máy chủ."}`}
+            {["DEEPSEEK", "OPENROUTER"].includes(preview.generationMode)
+              ? `Nội dung được tạo bằng ${preview.generationMode === "DEEPSEEK" ? "DeepSeek" : "OpenRouter"} từ tài liệu đã chọn. Hãy kiểm tra tính chính xác và chỉnh sửa trước khi lưu.${preview.sourceTruncated ? " Tài liệu dài: lần tạo này chỉ sử dụng phần đầu của mỗi tài liệu." : ""}`
+              : "AI giả lập: nội dung minh họa cố định, chưa phân tích tài liệu hoặc áp dụng yêu cầu bổ sung. Quiz có 4 lựa chọn và 1 đáp án đúng."}
           </p>
         </div>
         {error && <p className="ws-inline-error" role="alert">{error}</p>}
@@ -313,16 +316,8 @@ export function GeneratePage({ sourceId }) {
               ))}
               {editingPreview && <Button variant="secondary" icon="plus" disabled={preview.cards.length >= 50} onClick={() => setPreview({ ...preview, cards: [...preview.cards, { front: "", back: "", keyword: "" }] })}>Thêm thẻ</Button>}
             </div>
-          ) : editingPreview ? (
-            <MindmapEditor item={preview} onChange={(nodes) => setPreview((old) => ({ ...old, nodes }))} />
           ) : (
-            <ul className="ws-tree-list">
-              {preview.nodes.map((node) => (
-                <li key={node.id} style={{ marginLeft: node.parent ? 24 : 0 }}>
-                  {node.label}
-                </li>
-              ))}
-            </ul>
+            <MindmapEditor item={preview} readOnly={!editingPreview} onChange={(nodes) => setPreview((old) => ({ ...old, nodes }))} />
           )}
         </section>
       </>
@@ -403,7 +398,7 @@ export function GeneratePage({ sourceId }) {
           </Field>
           <Field
             label="Nội dung muốn tạo (không bắt buộc)"
-            hint={type === "QUIZ" ? "Mặc định: 4 lựa chọn và 1 đáp án đúng mỗi câu. Chỉ nhập nếu có yêu cầu bổ sung; chế độ giả lập lưu yêu cầu nhưng chưa áp dụng." : "Mô tả yêu cầu bổ sung nếu có. Có thể để trống."}
+            hint={type === "QUIZ" ? "Quiz gồm 4 lựa chọn và 1 đáp án đúng mỗi câu. Có thể bổ sung chủ đề trọng tâm, cách diễn đạt hoặc dạng tình huống." : "Mô tả yêu cầu bổ sung nếu có. Có thể để trống."}
           >
             <textarea
               name="contentRequest"
@@ -430,7 +425,7 @@ export function GeneratePage({ sourceId }) {
                 </select>
               </Field>
             ) : (
-              <Field label={type === "QUIZ" ? "Số câu hỏi mẫu" : "Số thẻ mẫu"}>
+              <Field label={type === "QUIZ" ? "Số câu hỏi" : "Số thẻ"}>
                 <input
                   key={type}
                   type="number"
@@ -449,9 +444,9 @@ export function GeneratePage({ sourceId }) {
             </p>
           )}
           <div className="ws-form-footer">
-            <span>{type === "QUIZ" ? "AI giả lập dùng 5 câu hỏi minh họa; số lượng lớn hơn sẽ lặp lại." : type === "FLASHCARD" ? "AI giả lập dùng 6 thẻ minh họa; số lượng lớn hơn sẽ lặp lại." : "AI giả lập dùng sơ đồ minh họa về cơ sở dữ liệu."} Không cần API key.</span>
+            <span>{isPreview ? "Bản xem trước dùng nội dung giả lập." : "Văn bản tài liệu được gửi tới dịch vụ AI đã cấu hình. Nếu chưa cấu hình key, hệ thống dùng nội dung giả lập và ghi rõ trong kết quả."}</span>
             <Button type="submit" icon="spark" disabled={busy}>
-              {busy ? "Đang tạo…" : "Xem kết quả mẫu"}
+              {busy ? "Đang tạo…" : isPreview ? "Xem kết quả mẫu" : "Tạo học liệu"}
             </Button>
           </div>
         </form>

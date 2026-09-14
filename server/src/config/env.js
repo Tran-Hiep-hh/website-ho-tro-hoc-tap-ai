@@ -17,7 +17,12 @@ export const env = Object.freeze({
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? "7d",
   deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
   deepseekApiUrl: process.env.DEEPSEEK_API_URL ?? "https://api.deepseek.com",
-  deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+  deepseekModel: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
+  aiProvider: process.env.AI_PROVIDER ?? "auto",
+  openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+  openrouterModel: process.env.OPENROUTER_MODEL ?? "",
+  aiTimeoutMs: numberFromEnv(process.env.AI_TIMEOUT_MS, 55000),
+  aiMaxSourceChars: numberFromEnv(process.env.AI_MAX_SOURCE_CHARS, 40000),
   maxFileSizeMb: numberFromEnv(process.env.MAX_FILE_SIZE_MB, 10),
   uploadDir: process.env.UPLOAD_DIR ?? "uploads",
 });

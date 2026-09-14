@@ -25,6 +25,8 @@ test("Mindmap preview edits flow directly into the saved library item", async ({
   await page.getByRole("button", { name: /Mindmap Kết nối ý tưởng/ }).click();
   await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Sơ đồ chỉnh trước");
   await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Sơ đồ tư duy tương tác", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chỉnh sửa nút", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Chỉnh sửa Mindmap", exact: true }).click();
   await page.getByRole("button", { name: "Thêm nhánh con", exact: true }).click();
   await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("");

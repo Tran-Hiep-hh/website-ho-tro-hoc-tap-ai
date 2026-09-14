@@ -27,7 +27,7 @@ function layoutTree(nodes) {
   };
 }
 
-export default function MindmapEditor({ item, onChange }) {
+export default function MindmapEditor({ item, onChange, readOnly = false }) {
   const { update, notify, confirm } = useWorkspace();
   const [localNodes, setLocalNodes] = useState(() => structuredClone(item.nodes));
   const nodes = onChange ? item.nodes : localNodes;
@@ -110,7 +110,7 @@ export default function MindmapEditor({ item, onChange }) {
     <>
       <div className="ws-toolbar">
         <p className="ws-muted">
-          Chọn một nút để chỉnh sửa. Dùng thanh cuộn để xem sơ đồ lớn.
+          {readOnly ? "Dùng nút phóng to, thu nhỏ và thanh cuộn để xem sơ đồ. Bấm Chỉnh sửa Mindmap để thay đổi các nhánh." : "Chọn một nút để chỉnh sửa. Dùng thanh cuộn để xem sơ đồ lớn."}
         </p>
         <div className="ws-actions">
           <Button variant="secondary" icon="download" onClick={exportPng}>
@@ -119,7 +119,7 @@ export default function MindmapEditor({ item, onChange }) {
           <Button variant="secondary" onClick={exportPdf}>
             In / Lưu PDF
           </Button>
-          {!onChange && <Button
+          {!readOnly && !onChange && <Button
             icon="check"
             disabled={saving}
             onClick={async () => {
@@ -144,7 +144,7 @@ export default function MindmapEditor({ item, onChange }) {
           </Button>}
         </div>
       </div>
-      <div className="ws-mindmap-layout">
+      <div className="ws-mindmap-layout" style={readOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
         <section className="ws-map-canvas">
           <div className="ws-map-scroll">
             <svg
@@ -174,17 +174,17 @@ export default function MindmapEditor({ item, onChange }) {
               {positions.map((entry) => (
                 <g
                   key={entry.id}
-                  role="button"
-                  tabIndex={0}
+                  role={readOnly ? "group" : "button"}
+                  tabIndex={readOnly ? undefined : 0}
                   aria-label={`Nút ${entry.label}`}
-                  onClick={() => setSelected(entry.id)}
+                  onClick={() => !readOnly && setSelected(entry.id)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
+                    if (!readOnly && (event.key === "Enter" || event.key === " ")) {
                       event.preventDefault();
                       setSelected(entry.id);
                     }
                   }}
-                  style={{ cursor: "pointer" }}
+                  style={{ cursor: readOnly ? "default" : "pointer" }}
                 >
                   <rect
                     x={entry.x}
@@ -250,7 +250,7 @@ export default function MindmapEditor({ item, onChange }) {
             </Button>
           </div>
         </section>
-        <aside className="ws-panel ws-node-editor">
+        {!readOnly && <aside className="ws-panel ws-node-editor">
           <h2>Chỉnh sửa nút</h2>
           {node && (
             <>
@@ -335,7 +335,7 @@ export default function MindmapEditor({ item, onChange }) {
           <small>
             {nodes.length}/30 nút. {onChange ? "Thay đổi được giữ trong bản nháp. Nhấn Lưu vào thư viện ở phía trên khi hoàn tất." : item.persisted ? "Nhấn Lưu Mindmap để lưu thay đổi trên máy chủ." : "Nhấn Lưu Mindmap để giữ thay đổi trong phiên này."}
           </small>
-        </aside>
+        </aside>}
       </div>
     </>
   );

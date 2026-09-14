@@ -8,7 +8,7 @@ export function errorHandler(error, _request, response, _next) {
 
   response.status(statusCode).json({
     success: false,
-    message: statusCode >= 500 ? "Hệ thống xảy ra lỗi. Vui lòng thử lại sau." :
+    message: statusCode >= 500 && error.expose !== true ? "Hệ thống xảy ra lỗi. Vui lòng thử lại sau." :
       error.type === "entity.parse.failed" ? "Dữ liệu JSON không hợp lệ." : error.message,
     ...(error.errors ? { errors: error.errors } : {}),
   });

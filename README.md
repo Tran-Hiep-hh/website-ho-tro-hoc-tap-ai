@@ -109,13 +109,13 @@ Với database đã có, chạy `npm run migrate --workspace server` trước kh
 
 Tệp gốc lưu ở `uploads/` tại thư mục gốc dự án (hoặc `UPLOAD_DIR`), tên lưu trữ ngẫu nhiên và không được phục vụ công khai. Cần sao lưu cả thư mục này và PostgreSQL. API `/api/documents` yêu cầu đăng nhập: danh sách chỉ chứa tài liệu tự tải lên, chỉ chủ sở hữu được xóa; thành viên đang hoạt động trong lớp được xem/tải tài liệu đã chia sẻ. Xóa đánh dấu bản ghi `DELETED`, gỡ tệp gốc và giữ tham chiếu cho học liệu đã tạo. Tài liệu đang chia sẻ trong lớp phải gỡ liên kết trước khi xóa.
 
-Nội dung tạo AI vẫn là giả lập. Tài liệu, học liệu, kết quả cá nhân và lớp học đã lưu thật. Nút đặt lại dữ liệu mẫu không xóa dữ liệu thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
+Tạo học liệu hỗ trợ DeepSeek/OpenRouter; khi chưa cấu hình key, chế độ auto dùng giả lập. Xem [hướng dẫn cấu hình AI](docs/ai-setup.md). Tài liệu, học liệu, kết quả cá nhân và lớp học đã lưu thật. Nút đặt lại dữ liệu mẫu không xóa dữ liệu thật. Bộ `test:e2e` kiểm tra cả tải tài liệu, tải lại trang, tải xuống và xóa bằng API thật; API test dùng schema và thư mục tạm riêng để kiểm tra quyền sở hữu và các định dạng.
 
-## Quiz cá nhân với AI giả lập
+## Quiz cá nhân với AI hoặc giả lập
 
-Không cần DeepSeek API key. Sau khi đăng nhập thật, chọn một tài liệu cá nhân đã xử lý → **Tạo học liệu** → **Quiz** → nhập tên, độ khó, số câu và yêu cầu bổ sung nếu có → **Xem kết quả mẫu** → **Lưu vào thư viện**. Quiz, thiết lập và yêu cầu bổ sung được lưu vào PostgreSQL; có thể chỉnh sửa, làm bài và xem lại kết quả sau khi tải lại trang.
+Không cần DeepSeek API key. Sau khi đăng nhập thật, chọn một tài liệu cá nhân đã xử lý → **Tạo học liệu** → **Quiz** → nhập tên, độ khó, số câu và yêu cầu bổ sung nếu có → **Tạo học liệu** → **Lưu vào thư viện**. Quiz, thiết lập và yêu cầu bổ sung được lưu vào PostgreSQL; có thể chỉnh sửa, làm bài và xem lại kết quả sau khi tải lại trang.
 
-Chế độ hiện tại luôn là **MOCK**, dùng 5 câu hỏi minh họa về cơ sở dữ liệu, không phân tích tài liệu và không áp dụng yêu cầu bổ sung. Mỗi câu có 4 lựa chọn và 1 đáp án đúng; số lượng 1–20, trên 5 câu sẽ lặp lại bộ mẫu. Giao diện ghi rõ giới hạn này. Cấu trúc tạo câu hỏi được tách trong `server/src/services/quizGenerator.js` để tích hợp nhà cung cấp AI sau; thêm API key chưa tự động chuyển sang DeepSeek.
+AI_PROVIDER=auto tự dùng DeepSeek khi có key, tiếp đến OpenRouter, nếu không có key thì dùng MOCK. AI thật phân tích văn bản tài liệu và yêu cầu bổ sung; kết quả được kiểm tra cấu trúc trước khi cho xem/chỉnh sửa. Quiz có đúng 4 lựa chọn và 1 đáp án đúng. Chế độ MOCK vẫn dùng câu minh họa cố định.
 
 API `/api/quizzes` yêu cầu đăng nhập và kiểm tra quyền sở hữu tài liệu nguồn/Quiz/lượt làm. Máy chủ chấm điểm từ đáp án của phiên bản đã bắt đầu; không nhận điểm do client tự tính. Điểm lưu theo tỷ lệ 0–100 để tương thích cấu trúc cũ, giao diện đổi sang thang 10 (60 → 6/10). Chỉnh sửa tạo phiên bản mới, giữ nguyên câu hỏi và kết quả của lượt làm cũ. Gửi lại yêu cầu nộp cùng lượt không tạo điểm hoặc câu trả lời trùng. Lựa chọn chưa nộp chỉ nằm trong trang hiện tại; tải lại trang cần chọn lại.
 
@@ -125,13 +125,13 @@ Kiểm thử: `npm run test --workspace server` kiểm tra quyền sở hữu, p
 
 ## Flashcard và Mindmap lưu thật
 
-Đăng nhập thật → chọn tài liệu sẵn sàng → **Tạo học liệu** → chọn Flashcard hoặc Mindmap → xem kết quả giả lập → chỉnh sửa trước khi lưu → **Lưu vào thư viện**. Hai loại học liệu dùng API `/api/study-materials`, được lưu trong các bảng `generated_contents`, `content_sources`, `flashcards` và `mindmap_nodes`. Người dùng chỉ được tạo từ tài liệu của mình và xem/sửa/xóa học liệu do mình sở hữu. Flashcard và Mindmap dùng để tự ôn tập, không giao hoặc chia sẻ cho lớp.
+Đăng nhập thật → chọn tài liệu sẵn sàng → **Tạo học liệu** → chọn Flashcard hoặc Mindmap → xem kết quả → chỉnh sửa trước khi lưu → **Lưu vào thư viện**. Hai loại học liệu dùng API `/api/study-materials`, được lưu trong các bảng `generated_contents`, `content_sources`, `flashcards` và `mindmap_nodes`. Người dùng chỉ được tạo từ tài liệu của mình và xem/sửa/xóa học liệu do mình sở hữu. Flashcard và Mindmap dùng để tự ôn tập, không giao hoặc chia sẻ cho lớp.
 
 Migration `004_study_materials.sql` bổ sung `generated_contents.revision`, `flashcards.keyword` và bảng `flashcard_progress`. Lệnh migrate có thể chạy lại, không xóa dữ liệu cũ. Số phiên bản giúp chặn lưu đè từ trang đã cũ; khi gặp thông báo xung đột, tải lại trang rồi chỉnh sửa tiếp.
 
 Flashcard lưu trạng thái **Đã nhớ / Cần ôn lại** theo từng thẻ. Sửa mặt trước hoặc mặt sau của thẻ đặt lại tiến độ của riêng thẻ đó; đổi tên bộ thẻ, từ khóa hoặc thứ tự không làm mất tiến độ của thẻ không đổi. Khi xóa thẻ, tiến độ liên quan được xóa theo. Mindmap lưu đầy đủ nút và nút cha; kiểm tra một nút gốc, không vòng lặp, không nhánh mồ côi, tối đa 30 nút. Nhấn **Lưu Mindmap** sau chỉnh sửa; có thể xuất PNG hoặc in/lưu PDF.
 
-Chế độ tạo nội dung vẫn là **MOCK**, không gọi DeepSeek hoặc phân tích tài liệu/yêu cầu bổ sung. Flashcard dùng 6 thẻ minh họa (chọn 1–20; trên 6 sẽ lặp lại), Mindmap dùng cây mẫu tổng quan hoặc chi tiết. Tất cả nội dung đã lưu và tiến độ đều còn sau khi tải lại trang. Đường dẫn `/preview/` vẫn dùng dữ liệu trong bộ nhớ và không gọi API.
+Flashcard và Mindmap dùng chung cấu hình AI với Quiz. MOCK dùng mẫu cố định; đường dẫn /preview/ luôn dùng dữ liệu mẫu, không gọi AI thật. Học liệu và tiến độ của tài khoản thật được lưu trên máy chủ.
 
 ## Lớp học với dữ liệu thật
 

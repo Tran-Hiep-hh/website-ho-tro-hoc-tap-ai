@@ -1,5 +1,8 @@
-// Replace this provider with an AI provider when one is configured. It never calls an external API.
-export async function generateQuiz({ title, difficulty, sources, contentRequest, quantity }) {
+import { providerConfig } from "./aiProvider.js";
+import { generateAIMaterial } from "./aiMaterialGenerator.js";
+export async function generateQuiz(input) {
+  if (providerConfig().provider !== "mock") return generateAIMaterial({ ...input, type: "QUIZ" });
+  const { title, difficulty, sources, contentRequest, quantity } = input;
   const templates = [
     ["Khóa chính có vai trò nào trong bảng dữ liệu?", ["Xác định duy nhất mỗi bản ghi", "Lưu mọi bản ghi trùng lặp", "Thay thế tất cả cột", "Xóa các bảng liên quan"], 0, "Khóa chính xác định duy nhất mỗi bản ghi và không nhận giá trị NULL."],
     ["Câu lệnh nào truy vấn dữ liệu trong SQL?", ["DELETE", "SELECT", "INSERT", "UPDATE"], 1, "SELECT lấy dữ liệu theo các điều kiện truy vấn."],

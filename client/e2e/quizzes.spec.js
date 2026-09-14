@@ -15,9 +15,9 @@ test("mock Quiz saves, edits, scores on server and survives reload", async ({ pa
   await page.getByRole("button", { name: "Tạo học liệu từ nguon-quiz.txt", exact: true }).click();
   await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Quiz lưu thật");
   await page.getByLabel("Nội dung muốn tạo (không bắt buộc)", { exact: false }).fill("Giải thích đơn giản, dễ hiểu.");
-  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByRole("button", { name: "Tạo học liệu", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Xem trước học liệu", exact: true })).toBeVisible();
-  await expect(page.getByText(/AI giả lập: câu hỏi minh họa/)).toBeVisible();
+  await expect(page.getByText(/AI giả lập: nội dung minh họa/)).toBeVisible();
   await page.getByRole("button", { name: "Chỉnh sửa câu hỏi", exact: true }).click();
   await page.getByRole("textbox", { name: "Nội dung câu 1", exact: true }).fill("Câu hỏi đã sửa trước khi lưu: khóa chính có vai trò gì?");
   await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();

@@ -235,9 +235,9 @@ function Shell({ route, previewRole, onLogout }) {
             </a>
           </div>
         </header>
-        <div className="ws-preview-strip">
+        {previewRole && <div className="ws-preview-strip">
           <span>
-            <Badge tone="orange">{previewRole ? "Bản xem trước" : "AI giả lập"}</Badge> {previewRole ? "Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này." : "Tài liệu, học liệu, lớp học, bài giao, kết quả và thông báo được lưu trên máy chủ. Nội dung AI đang giả lập."}
+            <Badge tone="orange">Bản xem trước</Badge> Dữ liệu học tập là dữ liệu mẫu. Thao tác được giữ trong phiên xem này.
           </span>
           <div>
             {previewRole && (
@@ -269,7 +269,7 @@ function Shell({ route, previewRole, onLogout }) {
               Đặt lại
             </button>
           </div>
-        </div>
+        </div>}
         <main className="ws-content" key={route}>
           {page}
         </main>

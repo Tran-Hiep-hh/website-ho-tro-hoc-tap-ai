@@ -30,8 +30,8 @@ test("Flashcards save edited previews and remembered/not-remembered progress acr
   await setup(page, request);
   await page.getByRole("button", { name: /Flashcard Ghi nhớ chủ động/ }).click();
   await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Bộ thẻ lưu thật");
-  await page.getByLabel("Số thẻ mẫu", { exact: true }).fill("3");
-  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByLabel("Số thẻ", { exact: true }).fill("3");
+  await page.getByRole("button", { name: "Tạo học liệu", exact: true }).click();
   await page.getByRole("button", { name: "Chỉnh sửa Flashcard", exact: true }).click();
   await page.getByLabel("Thẻ 1: Mặt trước", { exact: true }).fill("Thẻ trước khi lưu");
   await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
@@ -60,7 +60,7 @@ test("Mindmap stores preview edits and later changes with its complete tree", as
   await setup(page, request);
   await page.getByRole("button", { name: /Mindmap Kết nối ý tưởng/ }).click();
   await page.getByLabel("Tên học liệu / Chủ đề", { exact: true }).fill("Mindmap lưu thật");
-  await page.getByRole("button", { name: "Xem kết quả mẫu", exact: true }).click();
+  await page.getByRole("button", { name: "Tạo học liệu", exact: true }).click();
   await page.getByRole("button", { name: "Chỉnh sửa Mindmap", exact: true }).click();
   await page.getByRole("button", { name: "Thêm nhánh con", exact: true }).click();
   await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("Nhánh lưu database");

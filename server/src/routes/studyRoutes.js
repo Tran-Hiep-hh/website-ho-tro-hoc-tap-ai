@@ -5,6 +5,9 @@ import { createAuthService } from "../services/authService.js";
 import { requireAuth, protectAuthMutation, authRateLimit } from "../middlewares/auth.js";
 import { httpError } from "../utils/httpError.js";
 import { generateStudyMaterial } from "../services/studyGenerator.js";
+import { generationSettings } from "../services/aiMaterialGenerator.js";
+import { aiError } from "../utils/aiError.js";
+import { normalizeMindmap } from "../services/normalizeMindmap.js";
 
 const difficulties = { "Dễ": "EASY", "Trung bình": "MEDIUM", "Khó": "HARD" };
 const validId = (id) => /^[1-9]\d{0,18}$/.test(String(id)) && BigInt(id) <= 9223372036854775807n;
@@ -19,16 +22,22 @@ function validateSettings(body) {
   if (!Array.isArray(body.sources) || !body.sources.length || body.sources.length > 10 || !body.sources.every(validId)) throw httpError(400, "Chọn từ 1 đến 10 tài liệu nguồn.");
   return { type: body.type, title: text(body.title, 150), difficulty: body.difficulty, sources: [...new Set(body.sources.map(String))], contentRequest: text(body.contentRequest ?? "", 3000, true) };
 }
-function validateCards(cards) {
+export function validateCards(cards) {
   if (!Array.isArray(cards) || !cards.length || cards.length > 50) throw httpError(400, "Cần từ 1 đến 50 thẻ.");
   const result = cards.map((card) => ({ id: card?.id === undefined ? undefined : String(card.id), front: text(card?.front, 4000), back: text(card?.back, 4000), keyword: text(card?.keyword ?? "", 100, true) }));
   const ids = result.filter((card) => card.id !== undefined).map((card) => card.id);
   if (!ids.every(validId) || new Set(ids).size !== ids.length) throw httpError(400, "Mã thẻ không hợp lệ hoặc trùng lặp.");
   return result;
 }
-function validateNodes(nodes) {
+export function validateNodes(nodes) {
   if (!Array.isArray(nodes) || !nodes.length || nodes.length > 30) throw httpError(400, "Mindmap cần từ 1 đến 30 nút.");
-  const result = nodes.map((node) => ({ id: text(node?.id, 80), parent: node?.parent === null ? null : text(node?.parent, 80), label: text(node?.label, 48) }));
+  const result = nodes.map((node, index) => {
+    if (typeof node?.label !== "string" || !node.label.trim() || node.label.includes("\0")) throw httpError(400, `Nút ${index + 1} thiếu tên hợp lệ.`);
+    if (node.label.trim().length > 48) throw httpError(400, `Tên nút ${index + 1} dài quá 48 ký tự. Hãy yêu cầu AI dùng cụm từ ngắn cho mỗi nút.`);
+    if (typeof node?.id !== "string" || !node.id.trim() || node.id.length > 80) throw httpError(400, `Nút ${index + 1} có mã không hợp lệ.`);
+    if (node.parent !== null && (typeof node.parent !== "string" || !node.parent.trim() || node.parent.length > 80)) throw httpError(400, `Nút ${index + 1} thiếu mã nút cha; nút gốc phải có parent=null.`);
+    return { id: text(node.id, 80), parent: node.parent === null ? null : text(node.parent, 80), label: text(node.label.trim(), 48) };
+  });
   const map = new Map(result.map((node) => [node.id, node]));
   if (map.size !== result.length || result.filter((node) => node.parent === null).length !== 1) throw httpError(400, "Mindmap phải có một nút gốc và các mã nút khác nhau.");
   for (const node of result) {
@@ -58,12 +67,13 @@ export function createStudyRouter({ database = pool, authRepository = createAuth
     if (!rows[0]) throw missing(); return rows[0];
   }
   async function sources(db, userId, ids) {
-    const result = await db.query("SELECT document_id FROM source_documents WHERE document_id=ANY($1::bigint[]) AND owner_id=$2 AND status='READY' AND length(trim(extracted_text))>0 FOR SHARE", [ids, userId]);
+    const result = await db.query("SELECT document_id,file_name,extracted_text FROM source_documents WHERE document_id=ANY($1::bigint[]) AND owner_id=$2 AND status='READY' AND length(trim(extracted_text))>0 FOR SHARE", [ids, userId]);
     if (result.rowCount !== ids.length) throw httpError(400, "Tài liệu phải thuộc về bạn và có văn bản sẵn sàng.");
+    return ids.map((id) => result.rows.find((row) => String(row.document_id) === id));
   }
   async function material(db, row) {
     const { rows: docs } = await db.query("SELECT document_id FROM content_sources WHERE content_id=$1 ORDER BY document_id", [row.content_id]);
-    const result = { id: String(row.content_id), type: row.content_type, title: row.title, revision: row.revision, persisted: true, generationMode: row.generation_settings.mode ?? "MOCK", contentRequest: row.generation_settings.contentRequest ?? "", difficulty: Object.keys(difficulties).find((key) => difficulties[key] === row.difficulty), sources: docs.map((doc) => String(doc.document_id)), createdAt: row.created_at };
+    const result = { id: String(row.content_id), type: row.content_type, title: row.title, revision: row.revision, persisted: true, generationMode: row.generation_settings.mode ?? "MOCK", generationModel: row.generation_settings.model, contentRequest: row.generation_settings.contentRequest ?? "", difficulty: Object.keys(difficulties).find((key) => difficulties[key] === row.difficulty), sources: docs.map((doc) => String(doc.document_id)), createdAt: row.created_at };
     if (row.content_type === "FLASHCARD") {
       const { rows } = await db.query("SELECT f.*, COALESCE(p.remembered,FALSE) AS remembered FROM flashcards f LEFT JOIN flashcard_progress p ON p.flashcard_id=f.flashcard_id AND p.user_id=$2 WHERE f.content_id=$1 ORDER BY f.display_order", [row.content_id, row.owner_id]);
       result.cards = rows.map((card) => ({ id: String(card.flashcard_id), front: card.front_text, back: card.back_text, keyword: card.keyword }));
@@ -107,15 +117,25 @@ export function createStudyRouter({ database = pool, authRepository = createAuth
     const input = validateSettings(req.body);
     const quantity = Number(req.body.quantity ?? 6), detail = req.body.detail ?? "detailed";
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20 || !["overview", "detailed"].includes(detail)) throw httpError(400, "Chọn 1–20 thẻ và mức chi tiết hợp lệ.");
-    await sources(database, req.user.userId, input.sources);
-    res.json({ success: true, content: await generateStudyMaterial({ ...input, quantity, detail }) });
+    const documents = await sources(database, req.user.userId, input.sources);
+    const generated = await generateStudyMaterial({ ...input, quantity, detail, documents });
+    try {
+      if (input.type === "FLASHCARD") {
+        generated.cards = validateCards(generated.cards?.map((card) => ({ ...card, id: undefined })));
+        if (generated.cards.length !== quantity) throw new Error("quantity");
+      } else generated.nodes = validateNodes(normalizeMindmap(generated.nodes));
+    } catch (error) {
+      if (input.type === "MINDMAP") throw aiError(502, `Mindmap do AI tạo chưa hợp lệ: ${error.statusCode === 400 ? error.message : "Không đọc được cấu trúc nút."}`);
+      throw aiError(502, "AI trả về Flashcard sai cấu trúc hoặc chưa đủ số thẻ. Vui lòng thử lại.");
+    }
+    res.json({ success: true, content: generated });
   });
   router.post("/", async (req, res) => {
     const input = validateSettings(req.body);
     const items = input.type === "FLASHCARD" ? validateCards(req.body.cards) : validateNodes(req.body.nodes);
     const result = await transaction(async (db) => {
       await sources(db, req.user.userId, input.sources);
-      const { rows } = await db.query("INSERT INTO generated_contents(owner_id,content_type,title,difficulty,status,generation_settings) VALUES ($1,$2,$3,$4,'READY',$5) RETURNING *", [req.user.userId, input.type, input.title, difficulties[input.difficulty], { mode: "MOCK", contentRequest: input.contentRequest }]);
+      const { rows } = await db.query("INSERT INTO generated_contents(owner_id,content_type,title,difficulty,status,generation_settings) VALUES ($1,$2,$3,$4,'READY',$5) RETURNING *", [req.user.userId, input.type, input.title, difficulties[input.difficulty], { ...generationSettings(req.body), contentRequest: input.contentRequest }]);
       for (const id of input.sources) await db.query("INSERT INTO content_sources(content_id,document_id) VALUES ($1,$2)", [rows[0].content_id, id]);
       if (input.type === "FLASHCARD") await writeCards(db, rows[0].content_id, items);
       else await writeNodes(db, rows[0].content_id, items);
