@@ -134,7 +134,7 @@ function Shell({ route, previewRole, onLogout }) {
         <Brand href={href("home")} />
         <div className="ws-space-label">KHÔNG GIAN CỦA BẠN</div>
         <nav aria-label="Điều hướng chính">
-          {navigation.map(([key, text, icon]) => (
+          {navigation.filter(([key]) => !(isTeacher && key === "assignments")).map(([key, text, icon]) => (
             <Fragment key={key}>
             {key === "documents" && <div className="ws-nav-group">CÁ NHÂN</div>}
             {key === "classes" && <div className="ws-nav-group">LỚP HỌC</div>}

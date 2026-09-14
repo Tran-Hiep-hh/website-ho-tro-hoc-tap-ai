@@ -78,7 +78,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
     const items = await questions(db, row.quiz_version_id);
     const { rows } = await db.query("SELECT question_id,selected_option_id FROM attempt_answers WHERE attempt_id=$1", [row.attempt_id]);
     const answers = items.map((q) => q.optionIds.indexOf(String(rows.find((r) => String(r.question_id) === q.id)?.selected_option_id)));
-    return { id: String(row.attempt_id), persisted: true, contentId: String(row.quiz_id), assignmentId: null, title: row.title, userId: String(user.userId), name: user.fullName, status: row.status, date: row.submitted_at ?? row.started_at, score: row.score === null ? null : Number(row.score), showAnswers: true, answers, questions: items };
+    return { id: String(row.attempt_id), attemptNumber: row.attempt_number, persisted: true, contentId: String(row.quiz_id), assignmentId: null, title: row.title, userId: String(user.userId), name: user.fullName, status: row.status, date: row.submitted_at ?? row.started_at, score: row.score === null ? null : Number(row.score), showAnswers: true, answers, questions: items };
   }
   router.post("/generate", authRateLimit(30, 15 * 60_000), async (req, res) => {
     const input = settings(req.body);

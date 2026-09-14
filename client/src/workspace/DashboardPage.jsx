@@ -195,7 +195,7 @@ export default function DashboardPage() {
               Xem tất cả <Icon name="arrow" size={15} />
             </a>
           </div>
-          {classes.slice(0, 2).map((item) => (
+          {classes.map((item) => (
             <a
               key={item.id}
               className="ws-resource-row"

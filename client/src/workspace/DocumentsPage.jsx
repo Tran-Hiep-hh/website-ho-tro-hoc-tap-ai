@@ -237,7 +237,7 @@ export default function DocumentsPage({ documentId }) {
         </div>
         <a href={href("classes")}>Mở tài liệu lớp →</a>
       </div>
-      <section className="ws-panel">
+      <section className="ws-panel ws-documents-panel">
         <div className="ws-toolbar">
           <Search
             value={query}

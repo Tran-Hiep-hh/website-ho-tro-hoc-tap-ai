@@ -14,11 +14,20 @@
 .ws-top-avatar:hover { box-shadow: 0 0 0 4px #dcece9; }
 .ws-top-avatar:focus-visible { outline: 3px solid #7353aa; outline-offset: 3px; }
 .ws-sidebar nav a.active { background: #deeee8; color: #205e4a; }
-.ws-sidebar nav a:nth-child(2) > svg { color: #33759f; }
-.ws-sidebar nav a:nth-child(3) > svg { color: #8053aa; }
-.ws-sidebar nav a:nth-child(4) > svg { color: #a86826; }
-.ws-sidebar nav a:nth-child(5) > svg { color: #386da1; }
-.ws-sidebar nav a:nth-child(6) > svg { color: #976040; }
+.ws-sidebar nav a:nth-of-type(1) > svg { color: #168b78; }
+.ws-sidebar nav a:nth-of-type(2) > svg { color: #33759f; }
+.ws-sidebar nav a:nth-of-type(3) > svg { color: #8053aa; }
+.ws-sidebar nav a:nth-of-type(4) > svg { color: #a86826; }
+.ws-sidebar nav a:nth-of-type(5) > svg { color: #386da1; }
+.ws-sidebar nav a:nth-of-type(6) > svg { color: #976040; }
+.ws-sidebar nav a:nth-of-type(7) > svg { color: #277d70; }
+.ws-sidebar nav a:hover > svg { filter: saturate(1.25); }
+.ws-nav-group { color: #527d78; }
+.ws-sidebar nav small { background: #d8ebc9; color: #47703d; }
+.ws-sidebar-tip { background: linear-gradient(145deg, #f8faed, #edf7f2); border-color: #d9e8d1; }
+.ws-sidebar-tip > span { color: #35735c; }
+.ws-sidebar-tip > span svg { color: #3b8b76; }
+.ws-sidebar-tip a { color: #3d7547; }
 .ws-hero { background: linear-gradient(115deg, #245d51, #345c82); }
 .ws-hero p { color: #e0eceb; }
 .ws-stat { border-top: 4px solid #138c78; background: #e1f6f0; }
@@ -38,6 +47,7 @@
 .ws-class-card,
 .ws-learning-card {
   border-color: #d2e5df;
+  box-shadow: 0 8px 24px #2b786812;
 }
 .ws-panel:hover,
 .ws-class-card:hover {
@@ -46,6 +56,94 @@
 }
 .ws-table tbody tr:hover {
   background: #eff9f6;
+}
+.ws-resource-row {
+  border-bottom-color: #e2eee9;
+  transition: background 160ms ease, padding 160ms ease;
+}
+.ws-resource-row:hover {
+  background: linear-gradient(90deg, #eef9f6, #f8fbff);
+  border-radius: 8px;
+  padding-left: 9px;
+  padding-right: 9px;
+}
+.ws-tabs button {
+  color: #71847d;
+}
+.ws-tabs button:hover {
+  color: #16786b;
+}
+.ws-tabs button.active {
+  color: #126c61;
+  border-bottom-color: #168b78;
+}
+.ws-field input,
+.ws-field select,
+.ws-field textarea,
+.ws-select,
+.ws-search {
+  border-color: #cfe2dc;
+  background: #fbfefd;
+}
+.ws-field input:focus,
+.ws-field select:focus,
+.ws-field textarea:focus,
+.ws-search:focus-within {
+  outline-color: #4aa997;
+  border-color: #7bc6b7;
+  box-shadow: 0 0 0 3px #4aa9971c;
+}
+.ws-table thead {
+  background: linear-gradient(90deg, #edf8f4, #f5f8ff);
+}
+.ws-documents-panel {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfffd 58%, #f8f7ff 100%);
+}
+.ws-documents-panel .ws-table {
+  font-size: 13px;
+}
+.ws-documents-panel .ws-table th {
+  color: #4f7772;
+  font-size: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.ws-documents-panel .ws-table td {
+  color: #617872;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+.ws-documents-panel .ws-table td:first-child,
+.ws-documents-panel .ws-table-name {
+  color: #214f55;
+}
+.ws-documents-panel .ws-table-name {
+  font-size: 13px;
+}
+.ws-documents-panel .ws-table small {
+  color: #809893;
+  font-size: 11px;
+}
+.ws-documents-panel .ws-file-label {
+  width: 43px;
+  height: 50px;
+  font-size: 10px;
+  box-shadow: 0 4px 10px #397c6a18;
+}
+.ws-documents-panel .ws-table tbody tr:hover {
+  background: linear-gradient(90deg, #eaf9f4, #f4f3ff);
+}
+.ws-scope-banner.personal {
+  background: linear-gradient(110deg, #eaf8f3, #f0f4ff 70%, #fff4e5);
+  border-color: #c9e4db;
+}
+.ws-scope-banner.personal strong {
+  color: #1c5c5a;
+  font-size: 16px;
+}
+.ws-scope-banner.personal p,
+.ws-scope-banner.personal a {
+  font-size: 13px;
 }
 .ws-badge.orange {
   background: #ffe2b6;
@@ -72,8 +170,10 @@
   background: linear-gradient(135deg, #edf8f4 0%, #f3f5ff 52%, #fff5e8 100%);
 }
 .ws-sidebar {
-  background: linear-gradient(180deg, #ffffff 0%, #eef9f6 100%);
-  border-right-color: #cfe3dd;
+  background:
+    linear-gradient(180deg, #f5fffc 0%, #eef8ff 46%, #fff8ed 100%),
+    linear-gradient(135deg, #d9f3eb, #e7e2fa);
+  border-right-color: #c5ddd9;
 }
 .ws-sidebar nav a {
   font-size: 13px;

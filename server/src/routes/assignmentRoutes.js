@@ -63,7 +63,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
   }
   async function result(db, row, assignment, user, reveal) {
     const items = await questions(db, row.quiz_version_id), selected = await answers(db, row, items);
-    return { id: String(row.attempt_id), persisted: true, assignmentId: String(row.assignment_id), contentId: String(assignment.quiz_id), title: assignment.title, userId: String(row.user_id), name: user.full_name, email: user.email, status: row.status, date: row.submitted_at, score: Number(row.score), correctCount: items.filter((q, i) => q.answer === selected[i]).length, showAnswers: reveal, answers: selected, questions: reveal ? items : safeQuestions(items) };
+    return { id: String(row.attempt_id), attemptNumber: row.attempt_number, persisted: true, assignmentId: String(row.assignment_id), classId: assignment.class_id == null ? null : String(assignment.class_id), className: assignment.class_name ?? null, contentId: String(assignment.quiz_id), title: assignment.title, userId: String(row.user_id), name: user.full_name, email: user.email, status: row.status, date: row.submitted_at, score: Number(row.score), correctCount: items.filter((q, i) => q.answer === selected[i]).length, showAnswers: reveal, answers: selected, questions: reveal ? items : safeQuestions(items) };
   }
   // Deadline finalization uses only answers saved before the deadline, even after the browser closes.
   async function expire(id) {
@@ -90,7 +90,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       const counts = await database.query("SELECT COUNT(*)::integer AS used,BOOL_OR(status='IN_PROGRESS') AS ongoing FROM quiz_attempts WHERE assignment_id=$1 AND user_id=$2", [a.assignment_id, req.user.userId]);
       assignments.push({ id: String(a.assignment_id), persisted: true, classId: String(a.class_id), contentId: String(a.quiz_id), versionId: String(a.quiz_version_id), title: a.title, startAt: a.start_at, dueAt: a.due_at, maxAttempts: a.max_attempts, durationMinutes: a.duration_minutes, showAnswers: a.show_answers, status: a.status, questionCount: all.length, questions: req.user.role === "TEACHER" ? all : [], attemptsUsed: counts.rows[0].used, inProgress: Boolean(counts.rows[0].ongoing) });
     }
-    const { rows } = await database.query("SELECT t.*,a.title,a.show_answers,v.quiz_id,c.teacher_id,u.full_name,u.email FROM quiz_attempts t JOIN quiz_assignments a USING(assignment_id) JOIN quiz_versions v ON v.quiz_version_id=t.quiz_version_id JOIN classrooms c ON c.class_id=a.class_id JOIN users u ON u.user_id=t.user_id WHERE t.status='SUBMITTED' AND (t.user_id=$1 OR c.teacher_id=$1) ORDER BY t.submitted_at", [req.user.userId]);
+    const { rows } = await database.query("SELECT t.*,a.class_id,c.class_name,a.title,a.show_answers,v.quiz_id,c.teacher_id,u.full_name,u.email FROM quiz_attempts t JOIN quiz_assignments a USING(assignment_id) JOIN quiz_versions v ON v.quiz_version_id=t.quiz_version_id JOIN classrooms c ON c.class_id=a.class_id JOIN users u ON u.user_id=t.user_id WHERE t.status='SUBMITTED' AND (t.user_id=$1 OR c.teacher_id=$1) ORDER BY t.submitted_at", [req.user.userId]);
     const attempts = [], classAttempts = [];
     for (const row of rows) {
       const ownClass = String(row.teacher_id) === String(req.user.userId);

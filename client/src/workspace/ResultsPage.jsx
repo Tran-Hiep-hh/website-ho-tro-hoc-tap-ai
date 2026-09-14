@@ -56,7 +56,7 @@ export default function ResultsPage({ segments = [] }) {
         </Button>
         <PageHeading
           title="Kết quả bài Quiz"
-          description={`${result.title} · ${result.name} · ${dateLabel(result.date)}`}
+          description={`${result.title} · ${result.className || "Quiz cá nhân"} · Lần thứ ${result.attemptNumber} · ${result.name} · ${dateLabel(result.date)}`}
         />
         <section className="ws-result-summary">
           <div
@@ -459,11 +459,16 @@ export default function ResultsPage({ segments = [] }) {
           </div>
           <section className="ws-panel">
             <Tabs
-              items={[
-                ["ALL", "Tất cả lượt làm"],
-                ["PERSONAL", "Quiz cá nhân"],
-                ["CLASS", "Quiz được giao"],
-              ]}
+              items={isTeacher
+                ? [
+                    ["ALL", "Tất cả lượt làm"],
+                    ["PERSONAL", "Quiz cá nhân"],
+                  ]
+                : [
+                    ["ALL", "Tất cả lượt làm"],
+                    ["PERSONAL", "Quiz cá nhân"],
+                    ["CLASS", "Quiz được giao"],
+                  ]}
               value={personalFilter}
               onChange={setPersonalFilter}
             />
@@ -473,6 +478,8 @@ export default function ResultsPage({ segments = [] }) {
                   <tr>
                     <th>Bài Quiz</th>
                     <th>Loại</th>
+                    <th>Lớp</th>
+                    <th>Lượt</th>
                     <th>Điểm</th>
                     <th>Ngày nộp</th>
                     <th />
@@ -487,6 +494,8 @@ export default function ResultsPage({ segments = [] }) {
                           {item.assignmentId ? "Được giao" : "Cá nhân"}
                         </Badge>
                       </td>
+                      <td>{item.className || "—"}</td>
+                      <td>Lần {item.attemptNumber}</td>
                       <td>
                         <strong>{scoreLabel(item.score)}</strong>
                       </td>
