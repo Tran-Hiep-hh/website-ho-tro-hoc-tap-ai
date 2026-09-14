@@ -1,0 +1,1 @@
+ALTER TABLE quiz_assignments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;

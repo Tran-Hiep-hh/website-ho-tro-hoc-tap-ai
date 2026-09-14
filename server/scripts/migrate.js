@@ -15,8 +15,11 @@ try {
     await client.query(await readFile(new URL("../../database/migrations/007_cancel_join_request.sql", import.meta.url), "utf8"));
     await client.query(await readFile(new URL("../../database/migrations/008_notifications.sql", import.meta.url), "utf8"));
     await client.query(await readFile(new URL("../../database/migrations/009_assignment_duration.sql", import.meta.url), "utf8"));
+    await client.query(await readFile(new URL("../../database/migrations/010_delete_assignments.sql", import.meta.url), "utf8"));
+    await client.query(await readFile(new URL("../../database/migrations/011_remove_deleted_quiz_results.sql", import.meta.url), "utf8"));
+    await client.query(await readFile(new URL("../../database/migrations/012_assignment_versions.sql", import.meta.url), "utf8"));
     await client.query("COMMIT");
-    console.log("Đã cập nhật cấu trúc xác thực, tài liệu, học liệu và lớp học; dữ liệu hiện có được giữ nguyên.");
+    console.log("Đã áp dụng migrations; đã dọn kết quả của Quiz, bài giao và lớp đã xóa.");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

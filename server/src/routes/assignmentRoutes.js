@@ -5,6 +5,7 @@ import { createAuthService } from "../services/authService.js";
 import { requireAuth, protectAuthMutation } from "../middlewares/auth.js";
 import { httpError } from "../utils/httpError.js";
 import { notifyClass } from "../services/notificationService.js";
+import { validateQuestions } from "./quizRoutes.js";
 
 const validId = (value) => /^[1-9]\d{0,18}$/.test(String(value)) && BigInt(value) <= 9223372036854775807n;
 const missing = () => httpError(404, "Không tìm thấy bài giao hoặc bạn không có quyền truy cập.");
@@ -69,7 +70,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
     await transaction(async (db) => {
       const { rows } = await db.query("SELECT * FROM quiz_assignments WHERE assignment_id=$1 FOR UPDATE", [id]);
       const item = rows[0];
-      if (!item) return;
+      if (!item || item.status !== "PUBLISHED" || item.deleted_at) return;
       const attempts = await db.query("SELECT * FROM quiz_attempts WHERE assignment_id=$1 AND status='IN_PROGRESS' FOR UPDATE", [id]);
       if (!attempts.rowCount) return;
       const all = await questions(db, item.quiz_version_id);
@@ -80,7 +81,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
     });
   }
   router.get("/", async (req, res) => {
-    const visible = await database.query("SELECT a.*,v.quiz_id FROM quiz_assignments a JOIN quiz_versions v USING(quiz_version_id) JOIN classrooms c USING(class_id) WHERE c.teacher_id=$1 OR (c.status='ACTIVE' AND a.status='PUBLISHED' AND EXISTS(SELECT 1 FROM class_memberships m WHERE m.class_id=c.class_id AND m.student_id=$1 AND m.status='ACTIVE')) ORDER BY a.assignment_id", [req.user.userId]);
+    const visible = await database.query("SELECT a.*,v.quiz_id FROM quiz_assignments a JOIN quiz_versions v USING(quiz_version_id) JOIN classrooms c USING(class_id) WHERE a.deleted_at IS NULL AND (c.teacher_id=$1 OR (c.status='ACTIVE' AND a.status='PUBLISHED' AND EXISTS(SELECT 1 FROM class_memberships m WHERE m.class_id=c.class_id AND m.student_id=$1 AND m.status='ACTIVE'))) ORDER BY a.assignment_id", [req.user.userId]);
     const history = await database.query("SELECT DISTINCT assignment_id FROM quiz_attempts WHERE user_id=$1 AND assignment_id IS NOT NULL", [req.user.userId]);
     for (const id of new Set([...visible.rows.map((a) => a.assignment_id), ...history.rows.map((a) => a.assignment_id)])) await expire(id);
     const assignments = [];
@@ -109,7 +110,7 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       await classAccess(db, req, b.classId, true);
       const quiz = await db.query("SELECT content_id FROM generated_contents WHERE content_id=$1 AND owner_id=$2 AND content_type='QUIZ' AND status='READY' FOR UPDATE", [b.contentId, req.user.userId]);
       if (!quiz.rowCount) throw missing();
-      const versions = await db.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 ORDER BY version_number DESC LIMIT 1", [b.contentId]);
+      const versions = await db.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 AND assignment_only=FALSE ORDER BY version_number DESC LIMIT 1", [b.contentId]);
       if (String(versions.rows[0]?.quiz_version_id) !== String(b.versionId)) throw httpError(409, "Quiz đã thay đổi. Tải lại học liệu trước khi giao bài.");
       const items = await questions(db, b.versionId);
       if (!items.length || items.some((q) => q.options.length !== 4 || q.answer < 0)) throw httpError(400, "Quiz chưa có câu hỏi hợp lệ.");
@@ -118,15 +119,45 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       return String(rows[0].assignment_id);
     }); res.status(201).json({ success: true, id });
   });
+  router.put("/:id", async (req, res) => {
+    const b = req.body ?? {}, start = new Date(b.startAt), due = new Date(b.dueAt);
+    const duration = b.durationMinutes ?? null;
+    const items = validateQuestions(b.questions);
+    if (typeof b.title !== "string" || !b.title.trim() || b.title.length > 150 || b.title.includes("\0") || !Number.isFinite(start.getTime()) || !Number.isFinite(due.getTime()) || due <= start || !Number.isInteger(b.maxAttempts) || b.maxAttempts < 1 || b.maxAttempts > 10 || typeof b.showAnswers !== "boolean" || (duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 1440))) throw httpError(400, "Kiểm tra tên bài, lịch, số lượt và thời gian làm bài.");
+    await transaction(async (db) => {
+      const a = await access(db, req, req.params.id, true);
+      if (a.deleted_at) throw missing();
+      if (a.status !== "DRAFT") throw httpError(409, "Chỉ được chỉnh sửa bản nháp chưa công bố.");
+      if (String(a.quiz_version_id) !== String(b.versionId)) throw httpError(409, "Bản nháp đã thay đổi. Tải lại trang trước khi sửa.");
+      const original = await db.query("SELECT g.content_id FROM generated_contents g JOIN quiz_versions v ON v.quiz_id=g.content_id WHERE v.quiz_version_id=$1 FOR UPDATE OF g", [a.quiz_version_id]);
+      const version = await db.query("INSERT INTO quiz_versions(quiz_id,version_number,title,assignment_only) SELECT $1,COALESCE(MAX(version_number),0)+1,$2,TRUE FROM quiz_versions WHERE quiz_id=$1 RETURNING quiz_version_id", [original.rows[0].content_id, b.title.trim()]);
+      const versionId = version.rows[0].quiz_version_id;
+      for (const [index, q] of items.entries()) {
+        const inserted = await db.query("INSERT INTO quiz_questions(quiz_version_id,question_text,explanation,source_label,display_order) VALUES ($1,$2,$3,$4,$5) RETURNING question_id", [versionId, q.text, q.explanation, q.source, index + 1]);
+        for (const [i, option] of q.options.entries()) await db.query("INSERT INTO answer_options(question_id,option_text,is_correct,display_order) VALUES ($1,$2,$3,$4)", [inserted.rows[0].question_id, option, q.answer === i, i + 1]);
+      }
+      await db.query("UPDATE quiz_assignments SET title=$2,quiz_version_id=$3,start_at=$4,due_at=$5,max_attempts=$6,duration_minutes=$7,show_answers=$8 WHERE assignment_id=$1", [a.assignment_id, b.title.trim(), versionId, start, due, b.maxAttempts, duration, b.showAnswers]);
+    });
+    res.json({ success: true });
+  });
+  router.delete("/:id", async (req, res) => {
+    await transaction(async (db) => {
+      const a = await access(db, req, req.params.id, true);
+      await db.query("DELETE FROM quiz_attempts WHERE assignment_id=$1", [a.assignment_id]);
+      await db.query("UPDATE quiz_assignments SET status='CANCELLED',deleted_at=COALESCE(deleted_at,NOW()) WHERE assignment_id=$1", [a.assignment_id]);
+    });
+    res.json({ success: true });
+  });
   router.post("/:id/status", async (req, res) => {
     await transaction(async (db) => {
       const a = await access(db, req, req.params.id, true), next = req.body?.status;
+      if (a.deleted_at) throw missing();
       if (next === "PUBLISHED" && a.status === "DRAFT" && new Date(a.due_at).getTime() > Date.now()) {
         await db.query("UPDATE quiz_assignments SET status='PUBLISHED' WHERE assignment_id=$1", [a.assignment_id]);
         await notifyClass(db, a.class_id, "Quiz mới được giao", a.title, `assignments/${a.assignment_id}`, "quiz");
-      } else if (next === "CANCELLED" && (a.status === "DRAFT" || (a.status === "PUBLISHED" && new Date(a.start_at).getTime() > Date.now()))) {
+      } else if (next === "CANCELLED") {
         await db.query("UPDATE quiz_assignments SET status='CANCELLED' WHERE assignment_id=$1", [a.assignment_id]);
-      } else throw httpError(409, "Không thể đổi trạng thái. Chỉ hủy bài nháp hoặc bài chưa mở; không công bố bài đã hết hạn.");
+      } else throw httpError(409, "Không thể đổi trạng thái. Chỉ công bố bài nháp chưa hết hạn.");
     }); res.json({ success: true });
   });
   router.post("/:id/attempts", async (req, res) => {
@@ -159,10 +190,12 @@ export function createAssignmentRouter({ database = pool, authRepository = creat
       const a = await access(db, req, found.rows[0].assignment_id);
       const { rows } = await db.query("SELECT * FROM quiz_attempts WHERE attempt_id=$1 FOR UPDATE", [req.params.id]);
       let row = rows[0];
+      if (!row) throw missing();
       const items = await questions(db, row.quiz_version_id);
       const version = await db.query("SELECT quiz_id FROM quiz_versions WHERE quiz_version_id=$1", [a.quiz_version_id]); a.quiz_id = version.rows[0].quiz_id;
       const user = { full_name: req.user.fullName };
       if (row.status === "SUBMITTED") return { submitted: true, attempt: await result(db, row, a, user, a.show_answers) };
+      if (a.status !== "PUBLISHED" || a.deleted_at) throw httpError(409, "Giáo viên đã hủy hoặc xóa bài giao. Bạn không thể tiếp tục làm bài.");
       const now = Date.now();
       if (now >= attemptDeadline(a, row).getTime()) {
         row = await finish(db, row, items, attemptDeadline(a, row));

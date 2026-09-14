@@ -119,7 +119,7 @@ AI_PROVIDER=auto tự dùng DeepSeek khi có key, tiếp đến OpenRouter, nế
 
 API `/api/quizzes` yêu cầu đăng nhập và kiểm tra quyền sở hữu tài liệu nguồn/Quiz/lượt làm. Máy chủ chấm điểm từ đáp án của phiên bản đã bắt đầu; không nhận điểm do client tự tính. Điểm lưu theo tỷ lệ 0–100 để tương thích cấu trúc cũ, giao diện đổi sang thang 10 (60 → 6/10). Chỉnh sửa tạo phiên bản mới, giữ nguyên câu hỏi và kết quả của lượt làm cũ. Gửi lại yêu cầu nộp cùng lượt không tạo điểm hoặc câu trả lời trùng. Lựa chọn chưa nộp chỉ nằm trong trang hiện tại; tải lại trang cần chọn lại.
 
-Chạy `npm run migrate --workspace server` cho database đã có. Migration `003_quizzes.sql` bổ sung cấu hình tạo, ngày tạo, tiêu đề phiên bản và nhãn nguồn câu hỏi; giữ nguyên dữ liệu cũ. Xóa Quiz khỏi thư viện vẫn giữ lịch sử làm bài. Quiz đang có bài giao nháp hoặc đã công bố phải gỡ bài giao trước khi xóa.
+Chạy `npm run migrate --workspace server` cho database đã có. Xóa Quiz gốc chỉ xóa kết quả tự luyện; các Quiz đã giao và kết quả của lớp giữ nguyên.
 
 Kiểm thử: `npm run test --workspace server` kiểm tra quyền sở hữu, phiên bản, chấm điểm và yêu cầu đồng thời; `npm run test:e2e --workspace client` kiểm tra luồng Quiz trên trình duyệt với PostgreSQL thật trong schema riêng.
 
@@ -139,7 +139,7 @@ Giáo viên mở **Lớp học** để tạo/sửa/xóa lớp, sao chép mã tha
 
 Tài liệu lớp xuất hiện trong **Lớp học → chọn lớp → Tài liệu lớp**, không tự thêm vào tài liệu cá nhân của học sinh. PDF mở trong tab mới; DOCX/TXT có văn bản xem trước và tải nguyên tệp. Muốn dùng tài liệu lớp làm nguồn cá nhân, học sinh tải về rồi tự tải lên. Rời lớp, bị xóa khỏi lớp hoặc gỡ tài liệu sẽ thu hồi quyền truy cập từ máy chủ.
 
-API `/api/classes` kiểm tra vai trò và chủ lớp. Yêu cầu đang chờ không có quyền xem tài liệu hoặc danh sách thành viên. Các thao tác duyệt, chia sẻ, rời/xóa lớp dùng transaction; lớp đang có Quiz diễn ra không được xóa/rời hoặc xóa thành viên. Xóa lớp giữ tài liệu gốc và lịch sử database.
+API `/api/classes` kiểm tra vai trò và chủ lớp. Yêu cầu đang chờ không có quyền xem tài liệu hoặc danh sách thành viên. Các thao tác duyệt, chia sẻ, rời/xóa lớp dùng transaction. Giáo viên được xóa lớp đang có Quiz; học sinh không được rời lớp và giáo viên không được xóa thành viên khi Quiz đang mở. Xóa lớp giữ tài liệu và Quiz gốc, nhưng xóa mọi lượt làm và điểm thuộc bài giao của lớp.
 
 Chạy `npm run migrate --workspace server`: migration `005_classes.sql` chỉ bổ sung trường `classrooms.group_name`, không xóa dữ liệu.
 
@@ -147,7 +147,7 @@ Học sinh đang chờ duyệt có thể nhấn **Hủy yêu cầu** trên thẻ
 
 ## Giao Quiz và kết quả lớp học
 
-Giáo viên vào **Giao Quiz → Giao Quiz mới**, chọn Quiz đã lưu và lớp của mình, đặt lịch mở/hạn nộp, số lượt 1–10 và quyền xem đáp án sau nộp. Có thể lưu nháp, công bố hoặc hủy bài nháp/bài chưa mở. Phiên bản câu hỏi được cố định ngay khi tạo bài giao (kể cả bản nháp); sửa Quiz gốc không làm thay đổi bài đã giao. Không hủy bài đã bắt đầu; muốn thay đổi nội dung cần tạo bài giao mới.
+Giáo viên vào **Giao Quiz → Giao Quiz mới**, chọn Quiz đã lưu và lớp của mình, đặt lịch mở/hạn nộp, số lượt 1–10 và quyền xem đáp án sau nộp. Có thể lưu nháp, công bố, hủy hoặc xóa bài giao kể cả khi đang mở. Phiên bản câu hỏi được cố định ngay khi tạo bài giao (kể cả bản nháp); sửa Quiz gốc không làm thay đổi bài đã giao. Nếu giao nhầm, xóa bài giao cũ rồi giao lại Quiz phù hợp.
 
 Học sinh đã được duyệt vào lớp mới được bắt đầu Quiz trong thời gian cho phép. Bắt đầu lại sẽ tiếp tục lượt đang làm, không tốn thêm lượt. Mỗi lựa chọn được lưu vào database; chờ thông báo lưu xong trước khi đóng trang. Tải lại trang và bấm **Bắt đầu Quiz** để khôi phục câu trả lời. Hai tab cùng sửa được kiểm tra số phiên bản, không ghi đè âm thầm.
 
@@ -218,3 +218,11 @@ Bộ `test:e2e` riêng vẫn kiểm thử xác thực thật và cần PostgreSQ
 - Điền `DEEPSEEK_API_KEY` trong `server/.env` trước khi tích hợp chức năng AI.
 - Không đưa tệp `.env` hoặc API key lên Git.
 - Quiz đã giao sử dụng một phiên bản cố định; muốn thay đổi phải hủy bài giao cũ, tạo phiên bản Quiz mới và giao lại.
+
+## Xóa bài giao và lớp học
+
+Bản nháp có nút **Chỉnh sửa bản nháp** để sửa tên, lịch, thời lượng, số lượt, quyền xem đáp án và thêm/sửa/xóa câu hỏi. Lưu không tự công bố. Bài đã công bố không được sửa. Migration `012_assignment_versions.sql` bổ sung `quiz_versions.assignment_only` để phiên bản riêng của bài giao không thay thế Quiz gốc. Chạy `npm run migrate --workspace server` trước khi khởi động phiên bản mới.
+
+Giáo viên sở hữu có thể hủy hoặc xóa bài giao ở mọi thời điểm. Nút **Xóa bài giao** giữ Quiz gốc nhưng xóa vĩnh viễn các lượt làm, đáp án và điểm của bài giao. Mỗi bài giao có tên riêng và đề cố định, độc lập với việc sửa hoặc xóa Quiz gốc. Giáo viên mở **Chi tiết → Nội dung Quiz đã giao** để xem câu hỏi, lựa chọn, đáp án đúng và giải thích; học sinh không được xem phần này. Xóa Quiz gốc chỉ xóa kết quả tự luyện. Xóa lớp xóa kết quả thuộc mọi bài giao của lớp. Hủy chỉ dừng làm bài, không xóa kết quả; Xóa mới xóa cả kết quả. Học sinh vẫn không được rời lớp khi Quiz đang mở.
+
+Chạy `npm run migrate --workspace server` để áp dụng `010_delete_assignments.sql` và `011_remove_deleted_quiz_results.sql`. Migration 011 dọn kết quả tự luyện của Quiz gốc đã xóa và kết quả thuộc bài giao/lớp đã xóa; giữ kết quả của bài giao còn tồn tại dù Quiz gốc đã xóa. Dữ liệu đã bị xóa bởi hành vi cũ không tự khôi phục.

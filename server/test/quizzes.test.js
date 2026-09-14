@@ -81,7 +81,7 @@ test("versions preserve old questions and server scoring ignores a forged client
   const newAttempt = await call(`/${quiz.id}/attempts`, "POST", {});
   assert.notEqual(newAttempt.attempt.id, attempt.id);
 });
-test("concurrent start/submit is idempotent and deleted quizzes keep historical results", async () => {
+test("concurrent start/submit is idempotent and deleted quizzes remove historical results", async () => {
   const quiz = await saved();
   const starts = await Promise.all([call(`/${quiz.id}/attempts`, "POST", {}), call(`/${quiz.id}/attempts`, "POST", {})]);
   assert.equal(starts[0].attempt.id, starts[1].attempt.id);
@@ -92,5 +92,6 @@ test("concurrent start/submit is idempotent and deleted quizzes keep historical 
   assert.equal(Number(counts.rows[0].count), 5);
   assert.equal((await call(`/${quiz.id}`, "DELETE", {})).status, 200);
   assert.equal((await call(`/${quiz.id}/attempts`, "POST", {})).status, 404);
-  assert.ok((await call("/attempts")).attempts.some((item) => item.id === starts[0].attempt.id));
+  assert.ok(!(await call("/attempts")).attempts.some((item) => item.id === starts[0].attempt.id));
+  assert.equal((await database.query("SELECT 1 FROM attempt_answers WHERE attempt_id=$1", [starts[0].attempt.id])).rowCount, 0);
 });

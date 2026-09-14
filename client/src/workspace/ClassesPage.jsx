@@ -109,7 +109,7 @@ export default function ClassesPage({ classId, initialTab }) {
     );
   }
   function removeClass() {
-    if (
+    if (!isTeacher &&
       data.assignments.some(
         (item) =>
           item.classId === cls.id &&
@@ -125,13 +125,13 @@ export default function ClassesPage({ classId, initialTab }) {
     }
     confirm({
       title: isTeacher ? "Xóa lớp học?" : "Rời lớp học?",
-      text: isTeacher ? "Thành viên sẽ không còn truy cập được lớp. Tài liệu gốc của bạn vẫn được giữ lại." : "Bạn sẽ mất quyền xem tài liệu lớp và cần xin tham gia lại nếu muốn quay lại.",
+      text: isTeacher ? "Xóa lớp và mọi bài giao trong lớp, kể cả Quiz đang mở. Học sinh sẽ không thể tiếp tục làm bài. Toàn bộ lượt làm và điểm trong lớp bị xóa vĩnh viễn. Tài liệu và Quiz gốc vẫn được giữ lại." : "Bạn sẽ mất quyền xem tài liệu lớp và cần xin tham gia lại nếu muốn quay lại.",
       action: async () => {
         if (!isPreview) {
-          if (await mutate(isTeacher ? "DELETE" : "POST", `/${cls.id}${isTeacher ? "" : "/leave"}`)) navigate("classes");
+          if (await mutate(isTeacher ? "DELETE" : "POST", `/${cls.id}${isTeacher ? "" : "/leave"}`)) { await reloadAssignments(); navigate("classes"); }
           return;
         }
-        if (isTeacher) remove("classes", cls.id);
+        if (isTeacher) { remove("classes", cls.id); setData((old) => ({ ...old, assignments: old.assignments.filter((a) => a.classId !== cls.id), attempts: old.attempts.filter((a) => !old.assignments.some((entry) => entry.classId === cls.id && entry.id === a.assignmentId)), classAttempts: old.classAttempts.filter((a) => !old.assignments.some((entry) => entry.classId === cls.id && entry.id === a.assignmentId)) })); }
         else update("classes", cls.id, { joined: false });
         navigate("classes");
       },

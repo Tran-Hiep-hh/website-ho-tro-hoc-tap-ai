@@ -114,7 +114,7 @@ test("Rejected students may reapply; removal and unsharing revoke access", async
   assert.equal((await call(`/documents/${doc.id}`, "GET", undefined, 3)).status, 404);
   assert.ok(!(await call("/classes", "GET", undefined, 3)).classes.some((item) => item.id === cls.id));
 });
-test("Active class quizzes block leaving, removing members and deleting the class", async () => {
+test("Active quizzes block member departure but owners can delete the class and stop its assignments", async () => {
   const cls = await classroom();
   await call(`/classes/${cls.id}/join`, "POST", { code: cls.code }, 2);
   const req = (await call("/classes")).requests.find((item) => item.classId === cls.id);
@@ -125,10 +125,10 @@ test("Active class quizzes block leaving, removing members and deleting the clas
   await database.query("INSERT INTO quiz_assignments(class_id,quiz_version_id,title,start_at,due_at,max_attempts) VALUES ($1,$2,'Quiz đang diễn ra',NOW()-INTERVAL '1 hour',NOW()+INTERVAL '1 hour',1)", [cls.id, versions[0].quiz_version_id]);
   assert.equal((await call(`/classes/${cls.id}/leave`, "POST", {}, 2)).status, 409);
   assert.equal((await call(`/classes/${cls.id}/members/${member.id}`, "DELETE", {})).status, 409);
-  assert.equal((await call(`/classes/${cls.id}`, "DELETE", {})).status, 409);
-  await database.query("UPDATE quiz_assignments SET status='CANCELLED' WHERE class_id=$1", [cls.id]);
-  assert.equal((await call(`/classes/${cls.id}/leave`, "POST", {}, 2)).status, 200);
-  assert.equal((await call(`/classes/${cls.id}`, "DELETE", {})).status, 200);
+    assert.equal((await call(`/classes/${cls.id}`, "DELETE", {})).status, 200);
+    const deleted = await database.query("SELECT status,deleted_at FROM quiz_assignments WHERE class_id=$1", [cls.id]);
+    assert.equal(deleted.rows[0].status, "CANCELLED");
+    assert.ok(deleted.rows[0].deleted_at);
 });
 test("Students cancel only their own pending request, retain history and may reapply", async () => {
   const cls = await classroom();

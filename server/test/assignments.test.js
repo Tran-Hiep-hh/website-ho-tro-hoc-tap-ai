@@ -65,7 +65,7 @@ test("Assignment creation validates role, class ownership, Quiz version and sche
   assert.deepEqual(listed.questions, []); assert.equal(listed.questionCount, 2);
   assert.equal((await call(`/assignments/${a.id}/attempts`, "POST", {}, 3)).status, 404);
   assert.equal((await call(`/assignments/${a.id}/attempts`, "POST", {}, 0)).status, 403);
-  assert.equal((await call(`/assignments/${a.id}/status`, "POST", { status: "CANCELLED" })).status, 409);
+  assert.equal((await call(`/assignments/${a.id}/status`, "POST", { status: "CANCELLED" })).status, 200);
   const future = await fixture({ startAt: new Date(Date.now() + 600_000).toISOString() });
   assert.equal((await call(`/assignments/${future.id}/attempts`, "POST", {}, 2)).status, 409);
   assert.equal((await call(`/assignments/${future.id}/status`, "POST", { status: "CANCELLED" })).status, 200);
@@ -105,7 +105,7 @@ test("Assignments freeze the Quiz version; only permitted submitted results reve
   const submitted = await call(`/assignments/attempts/${t.id}/submit`, "POST", { answers: [0, 1], revision: 0 }, 2);
   assert.equal(submitted.attempt.score, 100); assert.equal(submitted.attempt.questions[1].answer, 1);
   assert.equal((await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).status, 200);
-  assert.equal((await call(`/quizzes/${a.contentId}`, "DELETE", {})).status, 409);
+  assert.equal((await call(`/quizzes/${a.contentId}`, "DELETE", {})).status, 200);
 });
 test("Deadline rejects late edits and finalizes saved answers even when the browser is closed", async () => {
   const a = await fixture();
@@ -152,6 +152,72 @@ test("Per-attempt duration survives resume, caps at class deadline and rejects l
   await database.query("UPDATE quiz_attempts SET started_at=NOW()-INTERVAL '2 minutes' WHERE attempt_id=$1", [closed.id]);
   const history = (await call("/assignments", "GET", undefined, 2)).attempts;
   assert.equal(history.find((item) => item.id === closed.id).status, "SUBMITTED");
+});
+
+test("Deleting assignments removes results; deleting originals preserves assigned quizzes and submissions", async () => {
+  const a = await fixture({ maxAttempts: 2 });
+  const t = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  const submitted = await call(`/assignments/attempts/${t.id}/submit`, "POST", { answers: [0, 1], revision: 0 }, 2);
+  assert.equal(submitted.attempt.score, 100);
+  const ongoing = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal((await call(`/assignments/${a.id}`, "DELETE", {}, 1)).status, 404);
+  assert.equal((await call(`/assignments/${a.id}`, "DELETE", {}, 2)).status, 403);
+  assert.equal((await call(`/assignments/${a.id}`, "DELETE", {})).status, 200);
+  assert.equal((await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).status, 409);
+  assert.equal((await call(`/assignments/attempts/${ongoing.id}/answers`, "PUT", { answers: [0, 1], revision: 0 }, 2)).status, 404);
+  await database.query("UPDATE quiz_assignments SET due_at=NOW()-INTERVAL '1 second' WHERE assignment_id=$1", [a.id]);
+  assert.equal((await call(`/assignments/attempts/${ongoing.id}/submit`, "POST", { answers: [0, 1], revision: 0 }, 2)).status, 404);
+  const history = await call("/assignments", "GET", undefined, 2);
+  assert.ok(!history.assignments.some((item) => item.id === a.id));
+  assert.ok(!history.attempts.some((item) => item.id === t.id));
+  assert.equal((await database.query("SELECT 1 FROM attempt_answers WHERE attempt_id=$1", [t.id])).rowCount, 0);
+  assert.ok(!(await call("/assignments")).assignments.some((item) => item.id === a.id));
+  const b = await fixture();
+  const current = (await call(`/assignments/${b.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal((await call(`/quizzes/${b.contentId}`, "DELETE", {}, 1)).status, 404);
+  assert.equal((await call(`/quizzes/${b.contentId}`, "DELETE", {})).status, 200);
+  const retained = (await call("/assignments")).assignments.find((item) => item.id === b.id);
+  assert.equal(retained.title, b.title);
+  assert.equal(retained.questions[0].text, "Câu gốc 0");
+  assert.equal(retained.questions[0].answer, 0);
+  assert.equal((await call(`/assignments/attempts/${current.id}/submit`, "POST", { answers: [0, 1], revision: 0 }, 2)).status, 200);
+});
+
+test("Cleanup migration removes only results of deleted assignments and is repeatable", async () => {
+  const removed = await fixture(), kept = await fixture();
+  const old = (await call(`/assignments/${removed.id}/attempts`, "POST", {}, 2)).attempt;
+  const current = (await call(`/assignments/${kept.id}/attempts`, "POST", {}, 2)).attempt;
+  await call(`/assignments/attempts/${old.id}/answers`, "PUT", { answers: [0, -1], revision: 0 }, 2);
+  await database.query("UPDATE quiz_assignments SET deleted_at=NOW() WHERE assignment_id=$1", [removed.id]);
+  await call(`/quizzes/${kept.contentId}`, "DELETE", {});
+  const sql = await readFile(new URL("../../database/migrations/011_remove_deleted_quiz_results.sql", import.meta.url), "utf8");
+  await database.query(sql); await database.query(sql);
+  assert.equal((await database.query("SELECT 1 FROM quiz_attempts WHERE attempt_id=$1", [old.id])).rowCount, 0);
+  assert.equal((await database.query("SELECT 1 FROM attempt_answers WHERE attempt_id=$1", [old.id])).rowCount, 0);
+  assert.equal((await database.query("SELECT 1 FROM quiz_attempts WHERE attempt_id=$1", [current.id])).rowCount, 1);
+});
+
+test("Draft edits are isolated, reject stale saves and become immutable on publication", async () => {
+  const a = await fixture({ status: "DRAFT" });
+  const listed = (await call("/assignments")).assignments.find((x) => x.id === a.id);
+  const payload = { ...listed, title: "Nháp đã sửa", durationMinutes: 10, questions: listed.questions.map((q) => ({ ...q, text: `Đã sửa ${q.text}` })) };
+  assert.equal((await call(`/assignments/${a.id}`, "PUT", payload, 1)).status, 404);
+  assert.equal((await call(`/assignments/${a.id}`, "PUT", payload, 2)).status, 403);
+  assert.equal((await call(`/assignments/${a.id}`, "PUT", { ...payload, questions: [] })).status, 400);
+  assert.equal((await call(`/assignments/${a.id}`, "PUT", payload)).status, 200);
+  assert.equal((await call(`/assignments/${a.id}`, "PUT", payload)).status, 409);
+  const edited = (await call("/assignments")).assignments.find((x) => x.id === a.id);
+  assert.equal(edited.title, payload.title);
+  assert.equal(edited.questions[0].text, payload.questions[0].text);
+  const originals = (await call("/quizzes")).contents;
+  const original = originals.find((x) => x.id === a.contentId);
+  assert.equal(original.versionId, a.versionId);
+  assert.equal(original.questions[0].text, "Câu gốc 0");
+  assert.equal((await call(`/assignments/${a.id}/status`, "POST", { status: "PUBLISHED" })).status, 200);
+  assert.equal((await call(`/assignments/${a.id}`, "PUT", edited)).status, 409);
+  const attempt = (await call(`/assignments/${a.id}/attempts`, "POST", {}, 2)).attempt;
+  assert.equal(attempt.questions[0].text, payload.questions[0].text);
+  assert.equal(attempt.questions[0].answer, undefined);
 });
 
 test("Quiz notifications are emitted once at publication, only to active members", async () => {

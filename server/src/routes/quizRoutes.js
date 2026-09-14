@@ -58,7 +58,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
     return rows.map((q) => ({ id: String(q.question_id), text: q.question_text, options: q.options.map((o) => o.text), optionIds: q.options.map((o) => o.id), answer: q.options.findIndex((o) => o.correct), explanation: q.explanation, source: q.source_label ?? "" }));
   }
   async function content(db, row) {
-    const { rows: versions } = await db.query("SELECT * FROM quiz_versions WHERE quiz_id=$1 ORDER BY version_number DESC LIMIT 1", [row.content_id]);
+    const { rows: versions } = await db.query("SELECT * FROM quiz_versions WHERE quiz_id=$1 AND assignment_only=FALSE ORDER BY version_number DESC LIMIT 1", [row.content_id]);
     const { rows: docs } = await db.query("SELECT document_id FROM content_sources WHERE content_id=$1 ORDER BY document_id", [row.content_id]);
     return { id: String(row.content_id), persisted: true, type: "QUIZ", title: row.title, status: row.status, difficulty: Object.keys(difficulties).find((key) => difficulties[key] === row.difficulty), createdAt: row.created_at, sources: docs.map((d) => String(d.document_id)), contentRequest: row.generation_settings.contentRequest ?? "", generationMode: row.generation_settings.mode ?? "MOCK", generationModel: row.generation_settings.model, versionId: String(versions[0].quiz_version_id), questions: await questions(db, versions[0].quiz_version_id) };
   }
@@ -115,7 +115,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
     const title = text(req.body.title, 150), items = validateQuestions(req.body.questions);
     const result = await transaction(async (db) => {
       const row = await owned(db, req.user.userId, req.params.id, true);
-      const latest = await db.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 ORDER BY version_number DESC LIMIT 1", [row.content_id]);
+      const latest = await db.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 AND assignment_only=FALSE ORDER BY version_number DESC LIMIT 1", [row.content_id]);
       if (String(req.body.versionId) !== String(latest.rows[0].quiz_version_id)) throw httpError(409, "Quiz đã được sửa ở nơi khác. Tải lại trang trước khi chỉnh sửa.");
       await db.query("UPDATE generated_contents SET title=$2 WHERE content_id=$1", [row.content_id, title]);
       await writeVersion(db, row.content_id, title, items);
@@ -125,9 +125,12 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
   });
   router.delete("/:id", async (req, res) => {
     await transaction(async (db) => {
+      // Same class-first lock order as assignment creation and submission.
+      await db.query("SELECT class_id FROM classrooms WHERE teacher_id=$1 ORDER BY class_id FOR UPDATE", [req.user.userId]);
       const row = await owned(db, req.user.userId, req.params.id, true);
-      const links = await db.query("SELECT 1 FROM class_materials WHERE content_id=$1 UNION ALL SELECT 1 FROM quiz_assignments a JOIN quiz_versions v USING(quiz_version_id) WHERE v.quiz_id=$1 AND a.status IN ('DRAFT','PUBLISHED')", [row.content_id]);
-      if (links.rowCount) throw httpError(409, "Gỡ Quiz khỏi lớp và bài giao trước khi xóa.");
+      // Assigned quizzes retain their immutable version and their own results.
+      await db.query("DELETE FROM quiz_attempts WHERE assignment_id IS NULL AND quiz_version_id IN (SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1)", [row.content_id]);
+      await db.query("DELETE FROM class_materials WHERE content_id=$1", [row.content_id]);
       await db.query("UPDATE generated_contents SET status='DELETED' WHERE content_id=$1", [row.content_id]);
     });
     res.json({ success: true });
@@ -135,7 +138,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
   router.post("/:id/attempts", async (req, res) => {
     const result = await transaction(async (db) => {
       const row = await owned(db, req.user.userId, req.params.id, true);
-      const { rows: versions } = await db.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 ORDER BY version_number DESC LIMIT 1", [row.content_id]);
+      const { rows: versions } = await db.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 AND assignment_only=FALSE ORDER BY version_number DESC LIMIT 1", [row.content_id]);
       const version = versions[0].quiz_version_id;
       let { rows } = await db.query("SELECT * FROM quiz_attempts WHERE user_id=$1 AND quiz_version_id=$2 AND assignment_id IS NULL AND status='IN_PROGRESS' ORDER BY attempt_id DESC LIMIT 1", [req.user.userId, version]);
       if (!rows.length) ({ rows } = await db.query("INSERT INTO quiz_attempts (user_id,quiz_version_id,attempt_number,status,started_at) SELECT $1,$2,COALESCE(MAX(attempt_number),0)+1,'IN_PROGRESS',NOW() FROM quiz_attempts WHERE user_id=$1 AND quiz_version_id=$2 AND assignment_id IS NULL RETURNING *", [req.user.userId, version]));

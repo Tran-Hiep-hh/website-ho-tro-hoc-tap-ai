@@ -1,4 +1,6 @@
 import { scoreLabel } from "./score.js";
+import AssignmentDraftEditor from "./AssignmentDraftEditor.jsx";
+import { clickable } from "./clickable.js";
 import { useEffect, useState } from "react";
 import { assignmentStatus, studentAssignmentStatus } from "./assignmentStatus.js";
 export { assignmentStatus } from "./assignmentStatus.js";
@@ -31,6 +33,15 @@ export default function AssignmentsPage({ segments = [] }) {
   const [status, setStatus] = useState("PUBLISHED");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  async function deleteAssignment() {
+    setBusy(true);
+    try {
+      if (isPreview) setData((old) => ({ ...old, assignments: old.assignments.filter((item) => item.id !== assignment.id), attempts: old.attempts.filter((item) => item.assignmentId !== assignment.id), classAttempts: old.classAttempts.filter((item) => item.assignmentId !== assignment.id) }));
+      else { await apiRequest(`/assignments/${assignment.id}`, { method: "DELETE", body: {} }); await reloadAssignments(); }
+      navigate("assignments"); notify("Đã xóa bài giao. Đã xóa toàn bộ lượt làm và điểm của bài giao.");
+    } catch (err) { notify(err.message); }
+    finally { setBusy(false); }
+  }
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -208,6 +219,7 @@ export default function AssignmentsPage({ segments = [] }) {
             </Field>
             <Field label="Trạng thái">
               <select
+                aria-label="Trạng thái"
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
               >
@@ -226,7 +238,7 @@ export default function AssignmentsPage({ segments = [] }) {
           </label>
           <div className="ws-info-banner">
             <Icon name="lock" size={18} />
-            <p>Bài giao giữ nguyên phiên bản câu hỏi khi tạo, kể cả khi lưu nháp.</p>
+            <p>Mỗi lần giao tạo một bài Quiz độc lập với tên và câu hỏi tại thời điểm tạo, kể cả khi lưu nháp. Sửa hoặc xóa Quiz gốc không ảnh hưởng bài đã giao.</p>
           </div>
           {error && (
             <p className="ws-inline-error" role="alert">
@@ -254,6 +266,43 @@ export default function AssignmentsPage({ segments = [] }) {
     )
       return <Empty title="Bài giao không khả dụng" />;
     const [label, tone] = displayStatus(assignment);
+    if (segments[1] === "edit") {
+      if (!isTeacher || assignment.status !== "DRAFT") return <Empty title="Chỉ được chỉnh sửa bản nháp chưa công bố" />;
+      return <AssignmentDraftEditor key={assignment.id} assignment={assignment} />;
+    }
+    const showContent = isTeacher && segments[1] === "details";
+    const teacherActions = isTeacher && (              <div className="ws-actions">
+                {assignment.status !== "DRAFT" && (
+                <Button
+                  onClick={() =>
+                    navigate(`results/assignment/${assignment.id}`)
+                  }
+                  icon="chart"
+                >
+                  Xem kết quả
+                </Button>
+                )}
+                {showContent && assignment.status === "DRAFT" && (
+                  <Button variant="secondary" icon="edit" onClick={() => navigate(`assignments/${assignment.id}/edit`)}>Chỉnh sửa</Button>
+                )}
+                {assignment.status === "DRAFT" && (
+                  <Button
+                    icon="check"
+                    disabled={busy}
+                    onClick={() =>
+                      confirm({
+                        title: "Công bố bài giao?",
+                        text: "Xác nhận bạn đã kiểm duyệt Quiz và muốn công bố cho lớp.",
+                        label: "Công bố",
+                        action: () => changeStatus("PUBLISHED"),
+                      })
+                    }
+                  >
+                    Công bố
+                  </Button>
+                )}
+                <Button variant="danger" icon="trash" disabled={busy} onClick={() => confirm({ title: "Xóa bài Quiz được giao?", text: "Bài giao sẽ biến mất khỏi danh sách và học sinh đang làm sẽ không thể lưu hoặc nộp tiếp. Toàn bộ lượt làm, đáp án và điểm của bài giao bị xóa vĩnh viễn. Quiz gốc vẫn giữ nguyên.", label: "Xóa bài giao", action: deleteAssignment })}>Xóa bài giao</Button>
+              </div>);
     const attempts = data.attempts.filter(
       (item) => item.assignmentId === assignment.id,
     );
@@ -275,9 +324,32 @@ export default function AssignmentsPage({ segments = [] }) {
             data.classes.find((item) => item.id === assignment.classId)?.name ??
             "Lớp học"
           }
-          action={<Badge tone={tone}>{label}</Badge>}
+          action={showContent ? teacherActions : <Badge tone={tone}>{label}</Badge>}
         />
-        <div className="ws-columns">
+        {showContent && (
+          <section className="ws-panel" aria-label="Nội dung Quiz đã giao">
+
+            <div className="ws-section-heading">
+              <h2>{assignment.questions.length} câu hỏi</h2>
+              <div className="ws-actions"><Badge tone={tone}>{label}</Badge><Badge>Có đáp án và giải thích</Badge></div>
+            </div>
+            <p className="ws-muted">Đây là đề của bài giao này, giữ nguyên khi Quiz gốc được sửa hoặc xóa. Đáp án và giải thích dưới đây chỉ dành cho giáo viên.</p>
+            {assignment.questions.map((question, index) => (
+              <div className="ws-question-preview" key={question.id ?? index}>
+                <strong>{index + 1}. {question.text}</strong>
+                {question.options.map((option, optionIndex) => (
+                  <p className={optionIndex === question.answer ? "correct" : ""} key={optionIndex}>
+                    {String.fromCharCode(65 + optionIndex)}. {option}
+                    {optionIndex === question.answer && <Icon name="check" size={15} />}
+                  </p>
+                ))}
+                <small><b>Giải thích:</b> {question.explanation}</small>
+                <small>Nguồn: {question.source}</small>
+              </div>
+            ))}
+          </section>
+        )}
+        {!showContent && <div className="ws-columns">
           <section className="ws-panel">
             <h2>Thông tin bài Quiz</h2>
             <dl className="ws-detail-list">
@@ -296,50 +368,8 @@ export default function AssignmentsPage({ segments = [] }) {
                 {assignment.showAnswers ? "Sau khi nộp bài" : "Không công bố"}
               </dd>
             </dl>
-            {isTeacher ? (
-              <div className="ws-actions">
-                <Button
-                  onClick={() =>
-                    navigate(`results/assignment/${assignment.id}`)
-                  }
-                  icon="chart"
-                >
-                  Xem kết quả
-                </Button>
-                {assignment.status === "DRAFT" && (
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      confirm({
-                        title: "Công bố bài giao?",
-                        text: "Xác nhận bạn đã kiểm duyệt Quiz và muốn công bố cho lớp.",
-                        label: "Công bố",
-                        action: () => changeStatus("PUBLISHED"),
-                      })
-                    }
-                  >
-                    Công bố
-                  </Button>
-                )}
-                {assignment.status !== "CANCELLED" &&
-                  (assignment.status === "DRAFT" ||
-                    new Date(assignment.startAt) > new Date()) && (
-                    <Button
-                      variant="danger"
-                      disabled={busy}
-                      onClick={() =>
-                        confirm({
-                          title: "Hủy bài giao?",
-                          text: "Người học sẽ không thể bắt đầu bài Quiz này.",
-                          action: () => changeStatus("CANCELLED"),
-                        })
-                      }
-                    >
-                      Hủy bài giao
-                    </Button>
-                  )}
-              </div>
-            ) : (
+            {teacherActions}
+            {!isTeacher && (
               <>
                 <p className="ws-muted">
                   Bạn đã sử dụng {assignment.attemptsUsed ?? attempts.length}/{assignment.maxAttempts} lượt
@@ -393,7 +423,7 @@ export default function AssignmentsPage({ segments = [] }) {
               />
             )}
           </section>
-        </div>
+        </div>}
       </>
     );
   }
@@ -444,7 +474,6 @@ export default function AssignmentsPage({ segments = [] }) {
               ...(isTeacher
                 ? [
                     ["DRAFT", "Bản nháp"],
-                    ["CANCELLED", "Đã hủy"],
                   ]
                 : []),
             ]}
@@ -470,7 +499,7 @@ export default function AssignmentsPage({ segments = [] }) {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className="ws-clickable" {...clickable(() => navigate(isTeacher ? `assignments/${item.id}/details` : `assignments/${item.id}`), `Mở bài Quiz ${item.title}`, true)}>
                   <td>
                     <strong>{item.title}</strong>
                     <small>

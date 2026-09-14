@@ -55,6 +55,7 @@ CREATE TABLE content_sources (
 );
 
 CREATE TABLE quiz_versions (
+    assignment_only BOOLEAN NOT NULL DEFAULT FALSE,
     title VARCHAR(255),
     quiz_version_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     quiz_id BIGINT NOT NULL REFERENCES generated_contents(content_id),
@@ -157,6 +158,7 @@ CREATE UNIQUE INDEX class_materials_content_unique
     WHERE content_id IS NOT NULL;
 
 CREATE TABLE quiz_assignments (
+    deleted_at TIMESTAMPTZ,
     assignment_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     class_id BIGINT NOT NULL REFERENCES classrooms(class_id),
     quiz_version_id BIGINT NOT NULL REFERENCES quiz_versions(quiz_version_id),

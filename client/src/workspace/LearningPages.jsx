@@ -16,7 +16,7 @@ import {
 } from "./ui.jsx";
 
 export function LibraryPage() {
-  const { data, navigate, confirm, remove, notify, isPreview, isTeacher, reloadQuizzes, href } = useWorkspace();
+  const { data, setData, navigate, confirm, remove, notify, isPreview, isTeacher, reloadQuizzes, reloadAssignments, reloadClasses, href } = useWorkspace();
   const [type, setType] = useState("ALL");
   const [query, setQuery] = useState("");
   const items = data.contents.filter(
@@ -27,13 +27,13 @@ export function LibraryPage() {
         .includes(query.toLocaleLowerCase("vi")),
   );
   function deleteContent(item) {
-    if (
+    if (item.type !== "QUIZ" && (
       (isPreview && data.classes.some((cls) => cls.materialIds.includes(item.id))) ||
       data.assignments.some(
         (assignment) =>
           assignment.contentId === item.id && assignment.status !== "CANCELLED",
       )
-    ) {
+    )) {
       notify(
         "Học liệu đang được chia sẻ hoặc giao cho lớp. Hãy gỡ liên kết trước khi xóa.",
       );
@@ -41,7 +41,7 @@ export function LibraryPage() {
     }
     confirm({
       title: "Xóa học liệu?",
-      text: item.persisted ? `Xóa “${item.title}” khỏi thư viện? Lịch sử làm bài vẫn được giữ lại.` : `Xóa “${item.title}” khỏi thư viện mẫu?`,
+      text: item.type === "QUIZ" ? `Xóa Quiz gốc “${item.title}” và kết quả tự luyện của Quiz này. Các Quiz đã giao cho lớp cùng lượt làm và điểm của chúng vẫn giữ nguyên.` : `Xóa “${item.title}” khỏi thư viện?`,
       label: "Xóa học liệu",
       action: async () => {
         if (item.persisted) {
@@ -49,6 +49,10 @@ export function LibraryPage() {
           catch (error) { notify(error.message); return; }
         }
         remove("contents", item.id);
+        if (item.type === "QUIZ") {
+          if (isPreview) setData((old) => ({ ...old, attempts: old.attempts.filter((a) => a.assignmentId || a.contentId !== item.id), classes: old.classes.map((cls) => ({ ...cls, materialIds: cls.materialIds.filter((key) => key !== item.id) })) }));
+          else { await reloadQuizzes(); await reloadAssignments(); await reloadClasses(); }
+        }
       },
     });
   }

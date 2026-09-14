@@ -162,7 +162,9 @@ export function createClassRouter({ database = pool, authRepository = createAuth
   });
   router.delete("/:id", async (req, res) => {
     await transaction(async (db) => {
-      const cls = await classRow(db, req, true); await noActiveQuiz(db, cls.class_id);
+      const cls = await classRow(db, req, true);
+      await db.query("UPDATE quiz_assignments SET status='CANCELLED',deleted_at=COALESCE(deleted_at,NOW()) WHERE class_id=$1", [cls.class_id]);
+      await db.query("DELETE FROM quiz_attempts WHERE assignment_id IN (SELECT assignment_id FROM quiz_assignments WHERE class_id=$1)", [cls.class_id]);
       await db.query("UPDATE classrooms SET status='DELETED' WHERE class_id=$1", [cls.class_id]);
       await db.query("UPDATE join_requests SET status='REJECTED' WHERE class_id=$1 AND status='PENDING'", [cls.class_id]);
       await db.query("UPDATE class_memberships SET status='REMOVED' WHERE class_id=$1", [cls.class_id]);
