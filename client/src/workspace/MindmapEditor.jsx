@@ -27,7 +27,10 @@ function layoutTree(nodes) {
   };
 }
 
-export default function MindmapEditor({ item, onChange, readOnly = false }) {
+export default function MindmapEditor({ item, onChange, readOnly: readOnlyProp }) {
+  const [editing, setEditing] = useState(false);
+  const managed = readOnlyProp === undefined && !onChange;
+  const readOnly = readOnlyProp ?? (!onChange && !editing);
   const { update, notify, confirm } = useWorkspace();
   const [localNodes, setLocalNodes] = useState(() => structuredClone(item.nodes));
   const nodes = onChange ? item.nodes : localNodes;
@@ -113,6 +116,8 @@ export default function MindmapEditor({ item, onChange, readOnly = false }) {
           {readOnly ? "Dùng nút phóng to, thu nhỏ và thanh cuộn để xem sơ đồ. Bấm Chỉnh sửa Mindmap để thay đổi các nhánh." : "Chọn một nút để chỉnh sửa. Dùng thanh cuộn để xem sơ đồ lớn."}
         </p>
         <div className="ws-actions">
+          {managed && !editing && <Button variant="secondary" icon="edit" onClick={() => setEditing(true)}>Chỉnh sửa Mindmap</Button>}
+          {managed && editing && <Button variant="secondary" disabled={saving} onClick={() => { setNodes(structuredClone(item.nodes)); setSelected(item.nodes[0].id); setEditing(false); }}>Hủy chỉnh sửa</Button>}
           <Button variant="secondary" icon="download" onClick={exportPng}>
             Xuất PNG
           </Button>
@@ -132,12 +137,14 @@ export default function MindmapEditor({ item, onChange, readOnly = false }) {
                 try {
                   const result = await apiRequest(`/study-materials/${item.id}`, { method: "PUT", body: { ...item, nodes } });
                   update("contents", item.id, result.content); notify("Đã lưu Mindmap trên máy chủ.");
+                  setEditing(false);
                 } catch (error) { notify(error.message); }
                 finally { setSaving(false); }
                 return;
               }
               update("contents", item.id, { nodes });
               notify("Đã lưu sơ đồ trong bản xem trước.");
+              setEditing(false);
             }}
           >
             Lưu Mindmap

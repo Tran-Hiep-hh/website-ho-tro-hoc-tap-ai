@@ -67,12 +67,14 @@ test("Mindmap stores preview edits and later changes with its complete tree", as
   await page.getByRole("button", { name: "Lưu vào thư viện", exact: true }).click();
   await expect(page).toHaveURL(/#\/content\/\d+$/);
   await page.reload();
+  await expect(page.getByRole("textbox", { name: "Nội dung nút", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Chỉnh sửa Mindmap", exact: true }).click();
   await page.getByRole("button", { name: "Nút Nhánh lưu database", exact: true }).click();
   await page.getByRole("textbox", { name: "Nội dung nút", exact: true }).fill("Nhánh đã sửa lần hai");
   await page.getByRole("button", { name: "Lưu Mindmap", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Đã lưu Mindmap trên máy chủ");
   await page.reload();
-  await expect(page.getByRole("button", { name: "Nút Nhánh đã sửa lần hai", exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Nút Nhánh đã sửa lần hai", exact: true })).toBeVisible();
   const pending = page.waitForEvent("download");
   await page.getByRole("button", { name: "Xuất PNG", exact: true }).click();
   expect((await pending).suggestedFilename()).toBe("Mindmap lưu thật.png");
