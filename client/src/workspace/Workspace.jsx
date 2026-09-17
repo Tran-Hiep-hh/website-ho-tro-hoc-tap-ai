@@ -37,7 +37,7 @@ function Shell({ route, previewRole, onLogout }) {
   const section = route.split("/")[0] || "home";
   const activeSection = ["content", "generate"].includes(section) ? "contents" : section === "play" ? (route.split("/")[1] === "assignment" ? "assignments" : "contents") : section;
   const label =
-    navigation.find(([key]) => key === section)?.[1] ??
+    (section === "assignments" && isTeacher ? "Giao Quiz & quản lý bài giao" : navigation.find(([key]) => key === section)?.[1]) ??
     {
       profile: "Hồ sơ cá nhân",
       notifications: "Thông báo",
@@ -134,7 +134,7 @@ function Shell({ route, previewRole, onLogout }) {
         <Brand href={href("home")} />
         <div className="ws-space-label">KHÔNG GIAN CỦA BẠN</div>
         <nav aria-label="Điều hướng chính">
-          {navigation.filter(([key]) => !(isTeacher && key === "assignments")).map(([key, text, icon]) => (
+          {navigation.map(([key, text, icon]) => (
             <Fragment key={key}>
             {key === "documents" && <div className="ws-nav-group">CÁ NHÂN</div>}
             {key === "classes" && <div className="ws-nav-group">LỚP HỌC</div>}
