@@ -87,6 +87,13 @@ test("grouped answer-position requests are enforced in their stated order", asyn
   assert.ok(generated.questions.every((q) => q.options[q.answer] === "Đúng"));
 });
 
+test("Quiz answers are evenly distributed when no position is requested", async () => {
+  const questions = Array.from({ length: 12 }, (_, index) => ({ text: `Câu ${index}`, options: ["Đúng", "Sai B", "Sai C", "Sai D"], answer: 0 }));
+  const generated = await generateAIMaterial({ type: "QUIZ", title: "Kiểm tra", difficulty: "Dễ", quantity: 12, sources: ["1"], contentRequest: "", documents: [{ document_id: "1", file_name: "a.txt", extracted_text: "Tài liệu" }] }, { config, complete: async () => ({ provider: "deepseek", model: "model", content: { questions } }) });
+  assert.deepEqual([0, 1, 2, 3].map((answer) => generated.questions.filter((q) => q.answer === answer).length), [3, 3, 3, 3]);
+  assert.ok(generated.questions.every((q) => q.options[q.answer] === "Đúng"));
+});
+
 test("AI Mindmap normalizes numeric references without hiding long labels or broken trees", () => {
   const normalized = normalizeMindmap([{ id: 0, parent: null, label: " Gốc " }, { id: 1, parentId: 0, label: "Nhánh" }]);
   assert.deepEqual(validateNodes(normalized), [{ id: "0", parent: null, label: "Gốc" }, { id: "1", parent: "0", label: "Nhánh" }]);

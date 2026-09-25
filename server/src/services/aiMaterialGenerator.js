@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { randomInt } from "node:crypto";
 import { createAICompletion } from "./aiProvider.js";
 import { aiError as httpError } from "../utils/aiError.js";
 
@@ -15,9 +16,18 @@ export function enforceRequestedAnswerPosition(questions, request = "") {
     const target = "abcd".indexOf(letter);
     return target < 0 ? [] : Array(questions?.length ?? 0).fill(target);
   })();
-  if (!requested.length || !Array.isArray(questions)) return questions;
+  if (!Array.isArray(questions)) return questions;
+  // Without an explicit position rule, avoid the model's answer: 0 example
+  // biasing every correct answer toward A.
+  const targets = requested.length ? requested : Array.from({ length: questions.length }, (_, index) => index % 4);
+  if (!requested.length) {
+    for (let index = targets.length - 1; index > 0; index--) {
+      const swap = randomInt(index + 1);
+      [targets[index], targets[swap]] = [targets[swap], targets[index]];
+    }
+  }
   return questions.map((question, index) => {
-    const target = requested[index];
+    const target = targets[index];
     if (target === undefined) return question;
     if (!question || !Array.isArray(question.options) || question.options.length !== 4 || !Number.isInteger(question.answer) || question.answer < 0 || question.answer > 3) return question;
     const options = [...question.options];
