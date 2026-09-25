@@ -1,5 +1,5 @@
 import { providerConfig } from "./aiProvider.js";
-import { generateAIMaterial } from "./aiMaterialGenerator.js";
+import { generateAIMaterial, enforceRequestedAnswerPosition } from "./aiMaterialGenerator.js";
 export async function generateQuiz(input) {
   if (providerConfig().provider !== "mock") return generateAIMaterial({ ...input, type: "QUIZ" });
   const { title, difficulty, sources, contentRequest, quantity } = input;
@@ -13,9 +13,9 @@ export async function generateQuiz(input) {
   return {
     type: "QUIZ", title, difficulty, sources, contentRequest, quantity,
     generationMode: "MOCK",
-    questions: Array.from({ length: quantity }, (_, index) => {
+    questions: enforceRequestedAnswerPosition(Array.from({ length: quantity }, (_, index) => {
       const [text, options, answer, explanation] = templates[index % templates.length];
       return { text, options: [...options], answer, explanation, source: "Bộ câu hỏi giả lập về cơ sở dữ liệu — không trích từ tài liệu đã chọn" };
-    }),
+    }), contentRequest),
   };
 }

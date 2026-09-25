@@ -83,7 +83,7 @@ export function createQuizRouter({ database = pool, authRepository = createAuthR
   router.post("/generate", authRateLimit(30, 15 * 60_000), async (req, res) => {
     const input = settings(req.body);
     const quantity = Number(req.body.quantity ?? 5);
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) throw httpError(400, "Chọn từ 1 đến 20 câu hỏi.");
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 30) throw httpError(400, "Chọn từ 1 đến 30 câu hỏi.");
     const documents = await sources(database, req.user.userId, input.sources);
     const generated = await generateQuiz({ ...input, quantity, documents });
     try {

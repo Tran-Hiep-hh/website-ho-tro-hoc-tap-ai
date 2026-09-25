@@ -435,7 +435,7 @@ export function GeneratePage({ sourceId }) {
                   type="number"
                   name="quantity"
                   min={1}
-                  max={isPreview ? (type === "QUIZ" ? 5 : 6) : 20}
+                  max={isPreview ? (type === "QUIZ" ? 5 : 6) : type === "QUIZ" ? 30 : 20}
                   defaultValue={formValues.quantity ?? (type === "QUIZ" ? 5 : 6)}
                   required
                 />

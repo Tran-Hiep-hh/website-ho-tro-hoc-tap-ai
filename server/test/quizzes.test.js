@@ -48,7 +48,7 @@ test("mock generation needs no key, validates sources and persists settings and 
   assert.equal((await fetch(`${base}/quizzes`)).status, 401);
   const invalid = { title: "Quiz", sources: [accounts[1].source], difficulty: "Dễ", quantity: 5 };
   assert.equal((await call("/generate", "POST", invalid)).status, 400);
-  assert.equal((await call("/generate", "POST", { ...invalid, sources: [accounts[0].source], quantity: 21 })).status, 400);
+  assert.equal((await call("/generate", "POST", { ...invalid, sources: [accounts[0].source], quantity: 31 })).status, 400);
   const quiz = await saved();
   assert.equal(quiz.contentRequest, "Giải thích dễ hiểu"); assert.equal(quiz.generationMode, "MOCK");
   assert.equal(quiz.questions.length, 5);

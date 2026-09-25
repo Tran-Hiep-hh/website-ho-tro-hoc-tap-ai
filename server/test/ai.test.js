@@ -70,6 +70,23 @@ test("generated Quiz, Flashcard and Mindmap validators reject broken structures"
   assert.equal(validateNodes([{ id: "a", parent: null, label: "Root" }, { id: "b", parent: "a", label: "Child" }]).length, 2);
 });
 
+test("explicit answer-position requests are enforced for every generated Quiz question", async () => {
+  const input = { type: "QUIZ", title: "Kiểm tra", difficulty: "Dễ", quantity: 2, sources: ["1"], contentRequest: "Đáp án đúng phải toàn là B", documents: [{ document_id: "1", file_name: "a.txt", extracted_text: "Tài liệu" }] };
+  const generated = await generateAIMaterial(input, { config, complete: async () => ({ provider: "deepseek", model: "model", content: { questions: [
+    { text: "Câu 1", options: ["Đúng 1", "Sai 1", "Sai 2", "Sai 3"], answer: 0, explanation: "Giải thích", source: "a.txt" },
+    { text: "Câu 2", options: ["Sai 1", "Sai 2", "Sai 3", "Đúng 2"], answer: 3, explanation: "Giải thích", source: "a.txt" },
+  ] } }) });
+  assert.deepEqual(generated.questions.map((q) => q.answer), [1, 1]);
+  assert.deepEqual(generated.questions.map((q) => q.options[1]), ["Đúng 1", "Đúng 2"]);
+});
+
+test("grouped answer-position requests are enforced in their stated order", async () => {
+  const questions = Array.from({ length: 15 }, (_, index) => ({ text: `Câu ${index}`, options: ["Đúng", "Sai B", "Sai C", "Sai D"], answer: 0 }));
+  const generated = await generateAIMaterial({ type: "QUIZ", title: "Kiểm tra", difficulty: "Dễ", quantity: 15, sources: ["1"], contentRequest: "Tôi muốn 5 câu đầu là A, 5 câu sau là B, 5 câu sau nữa là C", documents: [{ document_id: "1", file_name: "a.txt", extracted_text: "Tài liệu" }] }, { config, complete: async () => ({ provider: "deepseek", model: "model", content: { questions } }) });
+  assert.deepEqual(generated.questions.map((q) => q.answer), [...Array(5).fill(0), ...Array(5).fill(1), ...Array(5).fill(2)]);
+  assert.ok(generated.questions.every((q) => q.options[q.answer] === "Đúng"));
+});
+
 test("AI Mindmap normalizes numeric references without hiding long labels or broken trees", () => {
   const normalized = normalizeMindmap([{ id: 0, parent: null, label: " Gốc " }, { id: 1, parentId: 0, label: "Nhánh" }]);
   assert.deepEqual(validateNodes(normalized), [{ id: "0", parent: null, label: "Gốc" }, { id: "1", parent: "0", label: "Nhánh" }]);
