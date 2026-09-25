@@ -62,7 +62,9 @@ export default function App() {
   }, [retry, previewRole]);
 
   useEffect(() => {
-    document.title = `${previewRole ? "Xem trước giao diện" : user ? "Không gian học tập" : page === "register" ? "Đăng ký" : "Đăng nhập"} | StudyAI`;
+    document.title = user || previewRole
+      ? "StudyAI — Hệ thống hỗ trợ học tập bằng AI"
+      : `${page === "register" ? "Đăng ký" : "Đăng nhập"} | StudyAI`;
     if (previewRole) return;
     if (user && ["login", "register"].includes(route))
       window.location.hash = "/home";
