@@ -137,7 +137,7 @@ export default function ProfilePage() {
             <form onSubmit={passwordPreview} className="ws-form" key="security">
               <h2>Đổi mật khẩu</h2>
               <p className="ws-muted">
-                Thiết lập mật khẩu mới với ít nhất 8 ký tự, tối đa 72 byte.
+                Thiết lập mật khẩu mới với ít nhất 8 ký tự.
               </p>
               <Field label="Mật khẩu hiện tại">
                 <input
