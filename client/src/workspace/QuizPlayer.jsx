@@ -41,6 +41,7 @@ export default function QuizPlayer({ mode, targetId }) {
     return () => clearInterval(timer);
   }, [started, assignment]);
   const submitted = useRef(false);
+  const autoResumeAttempted = useRef(false);
   const submitRef = useRef(null);
   const attemptCount = data.attempts.filter(
     (item) => item.assignmentId === assignment?.id,
@@ -75,6 +76,12 @@ export default function QuizPlayer({ mode, targetId }) {
     } catch (error) { notify(error.message); }
     finally { setBusy(false); }
   }
+  const autoResumeKey = `${mode}:${targetId}:${assignment?.inProgress ? "resume" : "new"}`;
+  useEffect(() => {
+    if (mode !== "assignment" || !assignment?.persisted || !assignment.inProgress || started || busy || autoResumeAttempted.current) return;
+    autoResumeAttempted.current = true;
+    start();
+  }, [autoResumeKey, started, busy]);
   async function saveAnswer(next) {
     if (!assignment?.persisted) {
       setAnswers(next);

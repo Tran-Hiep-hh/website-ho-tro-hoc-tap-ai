@@ -2,7 +2,8 @@ import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 
 const server = createApp().listen(env.port, () => {
-  console.log(`API đang chạy tại http://localhost:${env.port}`);
+  console.log(`[SERVER] API URL: http://localhost:${env.port}`);
+  console.log(`[CLIENT] URL: ${env.clientUrl}`);
 });
 
 const shutdown = (signal) => {
