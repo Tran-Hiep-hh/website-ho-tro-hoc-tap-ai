@@ -167,6 +167,61 @@ export default function QuizPlayer({ mode, targetId }) {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [started, assignment, serverAttempt?.dueAt, serverAttempt?.clockOffset]);
+  useEffect(() => {
+    if (!started) return;
+
+    const currentHash = window.location.hash;
+    const pendingHash = { value: null };
+    let allowNavigation = false;
+
+    const leaveQuiz = (hash) => {
+      pendingHash.value = hash;
+      confirm({
+        title: "Thoát Quiz?",
+        text: assignment?.persisted
+          ? "Bạn có muốn rời khỏi Quiz không? Các câu trả lời đã lưu trên máy chủ vẫn được giữ lại và thời gian làm bài vẫn tiếp tục."
+          : "Bạn có muốn rời khỏi Quiz không? Các câu trả lời chưa nộp chỉ được giữ trong phiên hiện tại.",
+        label: "Thoát Quiz",
+        action: () => {
+          allowNavigation = true;
+          window.location.hash = pendingHash.value;
+        },
+      });
+    };
+
+    const handleLinkClick = (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target.closest("a");
+      if (!link || !link.href || link.target === "_blank") return;
+      const nextHash = new URL(link.href, window.location.href).hash;
+      if (!nextHash || nextHash === currentHash) return;
+      event.preventDefault();
+      leaveQuiz(nextHash);
+    };
+
+    const handleHashChange = () => {
+      if (allowNavigation) return;
+      const nextHash = window.location.hash;
+      if (nextHash === currentHash) return;
+      window.location.hash = currentHash;
+      leaveQuiz(nextHash);
+    };
+
+    const handleBeforeUnload = (event) => {
+      if (submitted.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    document.addEventListener("click", handleLinkClick, true);
+    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      document.removeEventListener("click", handleLinkClick, true);
+      window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [started, assignment?.persisted, confirm]);
   if (!questionCount || (!started && !canStart))
     return (
       <Empty
