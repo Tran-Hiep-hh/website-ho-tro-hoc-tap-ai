@@ -101,3 +101,16 @@ test("AI Mindmap normalizes numeric references without hiding long labels or bro
   assert.throws(() => validateNodes(normalizeMindmap([{ id: 0, parent: null, label: "Gốc" }, { id: 1, parent: 2, label: "Sai cha" }])), /không tồn tại/);
   assert.throws(() => validateNodes(normalizeMindmap([{ id: 0, parent: null, label: "Gốc" }, { id: "0", parent: null, label: "Trùng" }])), /mã nút khác nhau/);
 });
+
+test("AI Mindmap flattens nested children while preserving three-level branches", () => {
+  const normalized = normalizeMindmap([
+    { id: "root", parent: null, label: "Gốc", children: [
+      { id: "branch", label: "Nhánh", children: [{ id: "leaf", label: "Lá" }] },
+    ] },
+  ]);
+  assert.deepEqual(validateNodes(normalized), [
+    { id: "root", parent: null, label: "Gốc" },
+    { id: "branch", parent: "root", label: "Nhánh" },
+    { id: "leaf", parent: "branch", label: "Lá" },
+  ]);
+});
