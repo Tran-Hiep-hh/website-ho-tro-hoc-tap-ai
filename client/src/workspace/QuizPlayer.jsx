@@ -82,7 +82,7 @@ export default function QuizPlayer({ mode, targetId }) {
     autoResumeAttempted.current = true;
     start();
   }, [autoResumeKey, started, busy]);
-  async function saveAnswer(next) {
+  async function saveAnswer(next, changedIndex = index) {
     if (!assignment?.persisted) {
       setAnswers(next);
       setData((old) => ({ ...old, draftAnswers: { ...old.draftAnswers, [key]: next } }));
@@ -90,9 +90,9 @@ export default function QuizPlayer({ mode, targetId }) {
     }
     if (busy) return;
     const previous = answers;
-    setAnswers(next); setPendingAnswers(next); setBusy(true); setSaveError("");
+    setAnswers(next); setPendingAnswers({ answers: next, changedIndex }); setBusy(true); setSaveError("");
     try {
-      const result = await apiRequest(`/assignments/attempts/${serverAttempt.id}/answers`, { method: "PUT", body: { answers: next, revision: serverAttempt.revision } });
+      const result = await apiRequest(`/assignments/attempts/${serverAttempt.id}/answers`, { method: "PUT", body: { questionId: questions[changedIndex].id, answer: next[changedIndex], revision: serverAttempt.revision } });
       if (result.submitted) { await acceptResult(result.attempt); return; }
       setAnswers(next); setPendingAnswers(null); setServerAttempt((old) => ({ ...old, revision: result.revision }));
     } catch (error) { setAnswers(previous); setSaveError(error.message); }
@@ -320,7 +320,7 @@ export default function QuizPlayer({ mode, targetId }) {
           <h2>{question.text}</h2>
           {saveError && <div className="ws-inline-error" role="alert">
             <p>Chưa lưu lựa chọn mới: {saveError}</p>
-            <Button variant="secondary" disabled={busy} onClick={() => saveAnswer(pendingAnswers)}>Thử lưu lại</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => saveAnswer(pendingAnswers.answers, pendingAnswers.changedIndex)}>Thử lưu lại</Button>
             <Button variant="ghost" disabled={busy} onClick={start}>Tải bài đã lưu</Button>
           </div>}
           <fieldset className="ws-answer-options" disabled={busy}>
@@ -338,7 +338,7 @@ export default function QuizPlayer({ mode, targetId }) {
                     const next = answers.map((answer, qIndex) =>
                       qIndex === index ? optionIndex : answer,
                     );
-                    saveAnswer(next);
+                    saveAnswer(next, index);
                   }}
                 />
                 <span>{String.fromCharCode(65 + optionIndex)}</span>
