@@ -72,8 +72,8 @@ const endpoints = [
   ["Bỏ chia sẻ tài liệu", "DELETE", "/api/classes/1/materials/1", "", true],
   ["Xóa lớp", "DELETE", "/api/classes/1", "", true],
   ["Danh sách bài Quiz được giao", "GET", "/api/assignments", "", true],
-  ["Tạo bài Quiz giao", "POST", "/api/assignments", '{"classId":"1","contentId":"1","versionId":"1","title":"Bài kiểm tra mẫu","startAt":"2027-01-01T00:00:00.000Z","dueAt":"2027-12-31T23:59:59.000Z","maxAttempts":1,"showAnswers":false,"status":"PUBLISHED"}', true],
-  ["Cập nhật bài giao", "PUT", "/api/assignments/1", '{"title":"Bài kiểm tra đã sửa","versionId":"1","questions":[{"text":"2 + 2 bằng bao nhiêu?","options":["3","4","5","6"],"answer":1,"explanation":"2 + 2 = 4","source":""}],"startAt":"2027-01-01T00:00:00.000Z","dueAt":"2027-12-31T23:59:59.000Z","maxAttempts":1,"showAnswers":false}', true],
+  ["Tạo bài Quiz giao", "POST", "/api/assignments", '{"classId":"1","contentId":"1","versionId":"1","title":"Bài kiểm tra mẫu","startAt":"2027-01-01T00:00:00.000Z","dueAt":"2027-12-31T23:59:59.000Z","maxAttempts":1,"showAnswers":false,"shuffleQuestions":true,"status":"PUBLISHED"}', true],
+  ["Cập nhật bài giao", "PUT", "/api/assignments/1", '{"title":"Bài kiểm tra đã sửa","versionId":"1","questions":[{"text":"2 + 2 bằng bao nhiêu?","options":["3","4","5","6"],"answer":1,"explanation":"2 + 2 = 4","source":""}],"startAt":"2027-01-01T00:00:00.000Z","dueAt":"2027-12-31T23:59:59.000Z","maxAttempts":1,"showAnswers":false,"shuffleQuestions":true}', true],
   ["Xóa bài giao", "DELETE", "/api/assignments/1", "", true],
   ["Đổi trạng thái bài giao", "POST", "/api/assignments/1/status", '{"status":"PUBLISHED"}', true],
   ["Bắt đầu/tiếp tục bài giao", "POST", "/api/assignments/1/attempts", "{}", true],
@@ -206,4 +206,3 @@ code { color: #263451; font-family: Consolas, "Courier New", monospace; font-siz
 .result-heading button { background: #697386; padding: 6px 10px; }
 pre { min-height: 130px; max-height: 520px; overflow: auto; margin: 0; padding: 14px; border-radius: 8px; background: #172033; color: #d7e1f5; white-space: pre-wrap; }
 `;
-

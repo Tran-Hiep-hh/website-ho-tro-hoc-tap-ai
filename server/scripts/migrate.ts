@@ -19,6 +19,7 @@ try {
     await client.query(await readFile("../database/migrations/010_delete_assignments.sql", "utf8"));
     await client.query(await readFile("../database/migrations/011_remove_deleted_quiz_results.sql", "utf8"));
     await client.query(await readFile("../database/migrations/012_assignment_versions.sql", "utf8"));
+    await client.query(await readFile("../database/migrations/013_shuffle_assignment_questions.sql", "utf8"));
     await client.query("COMMIT");
     console.log("Đã áp dụng migrations; đã dọn kết quả của Quiz, bài giao và lớp đã xóa.");
   } catch (error) {
@@ -29,5 +30,4 @@ try {
   console.error("Không thể cập nhật database:", error.code ?? error.message);
   process.exitCode = 1;
 } finally { await pool.end(); }
-
 

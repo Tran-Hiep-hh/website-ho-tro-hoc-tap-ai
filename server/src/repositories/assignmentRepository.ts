@@ -32,7 +32,7 @@ async findPublicVersion(quizId, executor = this.database) {
   return executor.query("SELECT quiz_version_id FROM quiz_versions WHERE quiz_id=$1 AND assignment_only=FALSE ORDER BY version_number DESC LIMIT 1", [quizId]);
 }
 async createAssignment(values, executor = this.database) {
-  return executor.query("INSERT INTO quiz_assignments(class_id,quiz_version_id,title,start_at,due_at,max_attempts,show_answers,status,duration_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING assignment_id", values);
+  return executor.query("INSERT INTO quiz_assignments(class_id,quiz_version_id,title,start_at,due_at,max_attempts,show_answers,status,duration_minutes,shuffle_questions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING assignment_id", values);
 }
 async findOriginalContent(versionId, executor = this.database) {
   return executor.query("SELECT g.content_id FROM generated_contents g JOIN quiz_versions v ON v.quiz_id=g.content_id WHERE v.quiz_version_id=$1 FOR UPDATE OF g", [versionId]);
@@ -47,7 +47,7 @@ async createOption(questionId, option, correct, order, executor = this.database)
   return executor.query("INSERT INTO answer_options(question_id,option_text,is_correct,display_order) VALUES ($1,$2,$3,$4)", [questionId, option, correct, order]);
 }
 async updateAssignment(values, executor = this.database) {
-  return executor.query("UPDATE quiz_assignments SET title=$2,quiz_version_id=$3,start_at=$4,due_at=$5,max_attempts=$6,duration_minutes=$7,show_answers=$8 WHERE assignment_id=$1", values);
+  return executor.query("UPDATE quiz_assignments SET title=$2,quiz_version_id=$3,start_at=$4,due_at=$5,max_attempts=$6,duration_minutes=$7,show_answers=$8,shuffle_questions=$9 WHERE assignment_id=$1", values);
 }
 async deleteAssignmentAttempts(assignmentId, executor = this.database) {
   return executor.query("DELETE FROM quiz_attempts WHERE assignment_id=$1", [assignmentId]);
@@ -64,8 +64,8 @@ async findAttempts(assignmentId, userId, executor = this.database) {
 async findQuizIdByVersion(versionId, executor = this.database) {
   return executor.query("SELECT quiz_id FROM quiz_versions WHERE quiz_version_id=$1", [versionId]);
 }
-async createAssignedAttempt(userId, versionId, assignmentId, attemptNumber, executor = this.database) {
-  return executor.query("INSERT INTO quiz_attempts(user_id,quiz_version_id,assignment_id,attempt_number,started_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *", [userId, versionId, assignmentId, attemptNumber]);
+async createAssignedAttempt(userId, versionId, assignmentId, attemptNumber, questionOrder, executor = this.database) {
+  return executor.query("INSERT INTO quiz_attempts(user_id,quiz_version_id,assignment_id,attempt_number,started_at,question_order) VALUES ($1,$2,$3,$4,NOW(),$5) RETURNING *", [userId, versionId, assignmentId, attemptNumber, JSON.stringify(questionOrder)]);
 }
 async findAttemptAssignment(attemptId, userId, executor = this.database) {
   return executor.query("SELECT assignment_id FROM quiz_attempts WHERE attempt_id=$1 AND user_id=$2 AND assignment_id IS NOT NULL", [attemptId, userId]);

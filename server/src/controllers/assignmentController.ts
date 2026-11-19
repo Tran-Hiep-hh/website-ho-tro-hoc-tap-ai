@@ -6,6 +6,7 @@ import { httpError } from "../utils/httpError.js";
 import { notifyClass } from "../services/notificationService.js";
 import { validateQuestions } from "../validators/quizValidator.js";
 import { validateCreateAssignment, validateUpdateAssignment, validId } from "../validators/assignmentValidator.js";
+import { randomInt } from "node:crypto";
 
 const missing = () => httpError(404, "Không tìm thấy bài giao hoặc bạn không có quyền truy cập.");
 const safeQuestions = (items) => items.map(({ answer, explanation, source, optionIds, ...q }) => q);
@@ -13,6 +14,19 @@ const attemptDeadline = (assignment, attempt) => new Date(Math.min(
   new Date(assignment.due_at).getTime(),
   assignment.duration_minutes == null ? Infinity : new Date(attempt.started_at).getTime() + assignment.duration_minutes * 60000,
 ));
+function orderedQuestions(items, savedOrder, shuffle) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  if (Array.isArray(savedOrder) && savedOrder.length === items.length && savedOrder.every((item) => byId.has(String(item)))) {
+    return savedOrder.map((item) => byId.get(String(item)));
+  }
+  if (!shuffle) return items;
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swap = randomInt(index + 1);
+    [result[index], result[swap]] = [result[swap], result[index]];
+  }
+  return result;
+}
 async function answers(repository, row, items, executor) {
   const rows = await repository.findAnswers(row.attempt_id, executor);
   return items.map((q) => q.optionIds.indexOf(String(rows.find((r) => String(r.question_id) === q.id)?.selected_option_id)));
@@ -27,7 +41,9 @@ export function createAssignmentController({ database = pool, assignmentReposito
     return rows[0];
   }
   async function result(db, row, assignment, user, reveal) {
-    const items = await assignmentRepository.findQuestions(row.quiz_version_id, db), selected = await answers(assignmentRepository, row, items, db);
+    const allItems = await assignmentRepository.findQuestions(row.quiz_version_id, db);
+    const items = orderedQuestions(allItems, row.question_order, assignment.shuffle_questions);
+    const selected = await answers(assignmentRepository, row, items, db);
     return { id: String(row.attempt_id), attemptNumber: row.attempt_number, persisted: true, assignmentId: String(row.assignment_id), classId: assignment.class_id == null ? null : String(assignment.class_id), className: assignment.class_name ?? null, contentId: String(assignment.quiz_id), title: assignment.title, userId: String(row.user_id), name: user.full_name, email: user.email, status: row.status, date: row.submitted_at, score: Number(row.score), correctCount: items.filter((q, i) => q.answer === selected[i]).length, showAnswers: reveal, answers: selected, questions: reveal ? items : safeQuestions(items) };
   }
   // Deadline finalization uses only answers saved before the deadline, even after the browser closes.
@@ -53,7 +69,7 @@ export function createAssignmentController({ database = pool, assignmentReposito
     for (const a of visible.rows) {
       const all = await assignmentRepository.findQuestions(a.quiz_version_id, database);
       const counts = await assignmentRepository.countAttempts(a.assignment_id, req.user.userId, database);
-      assignments.push({ id: String(a.assignment_id), persisted: true, classId: String(a.class_id), contentId: String(a.quiz_id), versionId: String(a.quiz_version_id), title: a.title, startAt: a.start_at, dueAt: a.due_at, maxAttempts: a.max_attempts, durationMinutes: a.duration_minutes, showAnswers: a.show_answers, status: a.status, questionCount: all.length, questions: req.user.role === "TEACHER" ? all : [], attemptsUsed: counts.rows[0].used, inProgress: Boolean(counts.rows[0].ongoing) });
+      assignments.push({ id: String(a.assignment_id), persisted: true, classId: String(a.class_id), contentId: String(a.quiz_id), versionId: String(a.quiz_version_id), title: a.title, startAt: a.start_at, dueAt: a.due_at, maxAttempts: a.max_attempts, durationMinutes: a.duration_minutes, shuffleQuestions: a.shuffle_questions, showAnswers: a.show_answers, status: a.status, questionCount: all.length, questions: req.user.role === "TEACHER" ? all : [], attemptsUsed: counts.rows[0].used, inProgress: Boolean(counts.rows[0].ongoing) });
     }
     const { rows } = await assignmentRepository.listSubmitted(req.user.userId, database);
     const attempts = [], classAttempts = [];
@@ -76,7 +92,7 @@ export function createAssignmentController({ database = pool, assignmentReposito
       if (String(versions.rows[0]?.quiz_version_id) !== String(b.versionId)) throw httpError(409, "Quiz đã thay đổi. Tải lại học liệu trước khi giao bài.");
       const items = await assignmentRepository.findQuestions(b.versionId, db);
       if (!items.length || items.some((q) => q.options.length !== 4 || q.answer < 0)) throw httpError(400, "Quiz chưa có câu hỏi hợp lệ.");
-      const { rows } = await assignmentRepository.createAssignment([b.classId, b.versionId, schedule.title, schedule.start, schedule.due, b.maxAttempts, b.showAnswers, b.status, schedule.duration], db);
+      const { rows } = await assignmentRepository.createAssignment([b.classId, b.versionId, schedule.title, schedule.start, schedule.due, b.maxAttempts, b.showAnswers, b.status, schedule.duration, schedule.shuffleQuestions], db);
       if (b.status === "PUBLISHED") await notifyClass(db, b.classId, "Quiz mới được giao", schedule.title, `assignments/${rows[0].assignment_id}`, "quiz");
       return String(rows[0].assignment_id);
     }); res.status(201).json({ success: true, id });
@@ -96,7 +112,7 @@ export function createAssignmentController({ database = pool, assignmentReposito
         const inserted = await assignmentRepository.createQuestion(versionId, q, index + 1, db);
         for (const [i, option] of q.options.entries()) await assignmentRepository.createOption(inserted.rows[0].question_id, option, q.answer === i, i + 1, db);
       }
-      await assignmentRepository.updateAssignment([a.assignment_id, schedule.title, versionId, schedule.start, schedule.due, b.maxAttempts, schedule.duration, b.showAnswers], db);
+      await assignmentRepository.updateAssignment([a.assignment_id, schedule.title, versionId, schedule.start, schedule.due, b.maxAttempts, schedule.duration, b.showAnswers, schedule.shuffleQuestions], db);
     });
     res.json({ success: true });
   };
@@ -135,11 +151,14 @@ export function createAssignmentController({ database = pool, assignmentReposito
       }
       if (!row) {
         if (rows.length >= a.max_attempts) throw httpError(409, "Bạn đã dùng hết lượt làm bài.");
-        const inserted = await assignmentRepository.createAssignedAttempt(req.user.userId, a.quiz_version_id, a.assignment_id, rows.length + 1, db);
+        const items = await assignmentRepository.findQuestions(a.quiz_version_id, db);
+        const order = orderedQuestions(items, null, a.shuffle_questions).map((item) => item.id);
+        const inserted = await assignmentRepository.createAssignedAttempt(req.user.userId, a.quiz_version_id, a.assignment_id, rows.length + 1, order, db);
         row = inserted.rows[0];
       }
       const items = await assignmentRepository.findQuestions(a.quiz_version_id, db);
-      return { id: String(row.attempt_id), title: a.title, questions: safeQuestions(items), answers: await answers(assignmentRepository, row, items, db), revision: row.answer_revision, dueAt: attemptDeadline(a, row), startedAt: row.started_at, serverNow: new Date().toISOString() };
+      const ordered = orderedQuestions(items, row.question_order, a.shuffle_questions);
+      return { id: String(row.attempt_id), title: a.title, questions: safeQuestions(ordered), answers: await answers(assignmentRepository, row, ordered, db), revision: row.answer_revision, dueAt: attemptDeadline(a, row), startedAt: row.started_at, serverNow: new Date().toISOString() };
     }); res.json({ success: true, attempt });
   };
   async function writeAttempt(req, submit) {
@@ -191,4 +210,3 @@ export function createAssignmentController({ database = pool, assignmentReposito
   handlers.submitAttempt = async (req, res) => res.json({ success: true, ...await writeAttempt(req, true) });
   return handlers;
 }
-

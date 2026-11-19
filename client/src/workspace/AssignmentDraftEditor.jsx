@@ -19,7 +19,7 @@ export default function AssignmentDraftEditor({ assignment }) {
     event.preventDefault(); setBusy(true); setError("");
     try {
       const fields = Object.fromEntries(new FormData(event.currentTarget));
-      const payload = { ...draft, title: fields.title.trim(), startAt: new Date(fields.startAt).toISOString(), dueAt: new Date(fields.dueAt).toISOString(), maxAttempts: Number(fields.maxAttempts), durationMinutes: fields.durationMinutes === "" ? null : Number(fields.durationMinutes), showAnswers: fields.showAnswers === "on" };
+      const payload = { ...draft, title: fields.title.trim(), startAt: new Date(fields.startAt).toISOString(), dueAt: new Date(fields.dueAt).toISOString(), maxAttempts: Number(fields.maxAttempts), durationMinutes: fields.durationMinutes === "" ? null : Number(fields.durationMinutes), showAnswers: fields.showAnswers === "on", shuffleQuestions: fields.shuffleQuestions === "on" };
       if (new Date(payload.dueAt) <= new Date(payload.startAt)) throw new Error("Hạn nộp phải sau thời gian mở bài.");
       if (isPreview) update("assignments", assignment.id, { ...payload, questionCount: payload.questions.length });
       else { await apiRequest(`/assignments/${assignment.id}`, { method: "PUT", body: payload }); await reloadAssignments(); }
@@ -40,6 +40,7 @@ export default function AssignmentDraftEditor({ assignment }) {
           <Field label="Thời gian làm bài (phút)"><input name="durationMinutes" type="number" min={1} max={1440} defaultValue={draft.durationMinutes ?? ""} placeholder="Theo hạn nộp của lớp" /></Field>
         </div>
         <label className="ws-check-line"><input type="checkbox" name="showAnswers" defaultChecked={draft.showAnswers} />Cho phép xem đáp án và giải thích sau khi nộp</label>
+        <label className="ws-check-line"><input type="checkbox" name="shuffleQuestions" defaultChecked={draft.shuffleQuestions} />Xáo trộn thứ tự câu hỏi cho từng học sinh</label>
         <h2>{draft.questions.length} câu hỏi</h2>
         {draft.questions.map((q, index) => <section className="ws-question-edit" key={index}>
           <h3>Câu {index + 1}</h3>

@@ -167,6 +167,7 @@ CREATE TABLE quiz_assignments (
     due_at TIMESTAMPTZ NOT NULL,
     max_attempts INTEGER NOT NULL CHECK (max_attempts > 0),
     duration_minutes INTEGER CHECK (duration_minutes BETWEEN 1 AND 1440),
+    shuffle_questions BOOLEAN NOT NULL DEFAULT FALSE,
     show_answers BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED'
         CHECK (status IN ('DRAFT', 'PUBLISHED', 'CANCELLED')),
@@ -183,6 +184,7 @@ CREATE TABLE quiz_attempts (
     status VARCHAR(20) NOT NULL DEFAULT 'IN_PROGRESS'
         CHECK (status IN ('IN_PROGRESS', 'SUBMITTED')),
     started_at TIMESTAMPTZ NOT NULL,
+    question_order JSONB,
     submitted_at TIMESTAMPTZ,
     score NUMERIC(5, 2) CHECK (score BETWEEN 0 AND 100),
     CHECK (

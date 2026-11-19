@@ -17,10 +17,11 @@ function validateSchedule(body = {}, includeQuestions = false) {
     || (includeQuestions && !validId(body.versionId))
     || !Number.isInteger(body.maxAttempts) || body.maxAttempts < 1 || body.maxAttempts > 10
     || typeof body.showAnswers !== "boolean"
+    || (body.shuffleQuestions !== undefined && typeof body.shuffleQuestions !== "boolean")
   ) {
     throw httpError(400, includeQuestions ? "Kiểm tra tên bài, lịch, số lượt và thời gian làm bài." : "Thiết lập bài giao không hợp lệ. Kiểm tra tên, lịch và số lượt 1–10.");
   }
-  return { title: body.title.trim(), start, due, duration };
+  return { title: body.title.trim(), start, due, duration, shuffleQuestions: body.shuffleQuestions ?? false };
 }
 
 export function validateCreateAssignment(body = {}) {
@@ -37,4 +38,3 @@ export function validateUpdateAssignment(body = {}) {
 }
 
 export { validId };
-

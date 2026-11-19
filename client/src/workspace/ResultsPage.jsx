@@ -208,6 +208,69 @@ export default function ResultsPage({ segments = [] }) {
       "text/csv;charset=utf-8",
     );
   }
+  function exportPdf() {
+    if (!assignment) return;
+    const escapeHtml = (value) =>
+      String(value ?? "").replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]);
+    const reportRows = rows.map((row) => `
+      <tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${escapeHtml(row.email)}</td>
+        <td>${row.best ? `${scoreOnTen(row.best.score).toLocaleString("vi-VN")}/10` : "Chưa làm"}</td>
+        <td>${row.entries.length}</td>
+        <td>${row.best ? "Đã hoàn thành" : "Chưa làm"}</td>
+      </tr>`).join("");
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      window.alert("Không thể mở cửa sổ xuất PDF. Hãy cho phép cửa sổ bật lên cho trang này.");
+      return;
+    }
+    printWindow.document.write(`<!doctype html>
+      <html lang="vi">
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(assignment.title)} - Kết quả học tập</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #172033; margin: 32px; }
+            h1 { margin: 0 0 6px; font-size: 24px; }
+            h2 { margin: 24px 0 8px; font-size: 16px; }
+            p { color: #526078; margin: 4px 0; }
+            .stats { display: flex; gap: 28px; margin: 22px 0; }
+            .stat { border: 1px solid #dce2ec; border-radius: 8px; padding: 10px 14px; min-width: 120px; }
+            .stat strong { display: block; font-size: 18px; margin-top: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #dce2ec; padding: 9px 10px; text-align: left; }
+            th { background: #f2f5f9; }
+            @media print { body { margin: 16mm; } .stats { break-inside: avoid; } }
+          </style>
+        </head>
+        <body>
+          <h1>Kết quả học tập</h1>
+          <p>Lớp: ${escapeHtml(cls?.name ?? "")}</p>
+          <p>Bài Quiz: ${escapeHtml(assignment.title)}</p>
+          <div class="stats">
+            <div class="stat">Người học<strong>${members.length}</strong></div>
+            <div class="stat">Đã hoàn thành<strong>${completed.length}/${members.length}</strong></div>
+            <div class="stat">Tỷ lệ hoàn thành<strong>${members.length ? Math.round((completed.length / members.length) * 100) : 0}%</strong></div>
+            <div class="stat">Điểm trung bình<strong>${average === null ? "—" : `${scoreOnTen(average).toLocaleString("vi-VN")}/10`}</strong></div>
+          </div>
+          <h2>Kết quả từng người học</h2>
+          <table>
+            <thead><tr><th>Họ tên</th><th>Email</th><th>Điểm cao nhất</th><th>Số lần làm</th><th>Trạng thái</th></tr></thead>
+            <tbody>${reportRows || '<tr><td colspan="5">Chưa có người học</td></tr>'}</tbody>
+          </table>
+        </body>
+      </html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.setTimeout(() => printWindow.print(), 250);
+  }
   return (
     <>
       {!isPreview && <Button variant="secondary" onClick={reloadAssignments}>Làm mới</Button>}
@@ -221,9 +284,14 @@ export default function ResultsPage({ segments = [] }) {
         action={
           isTeacher &&
           tab === "class" && (
-            <Button variant="secondary" icon="download" onClick={exportCsv}>
-              {isPreview ? "Xuất CSV mẫu" : "Xuất CSV"}
-            </Button>
+            <span className="ws-actions">
+              <Button variant="secondary" icon="download" onClick={exportCsv}>
+                {isPreview ? "Xuất CSV mẫu" : "Xuất CSV"}
+              </Button>
+              <Button variant="secondary" icon="download" onClick={exportPdf}>
+                {isPreview ? "Xuất PDF mẫu" : "Xuất PDF"}
+              </Button>
+            </span>
           )
         }
       />

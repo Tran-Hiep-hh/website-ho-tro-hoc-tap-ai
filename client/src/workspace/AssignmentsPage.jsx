@@ -73,7 +73,7 @@ export default function AssignmentsPage({ segments = [] }) {
     if (!isPreview) {
       setBusy(true); setError("");
       try {
-        const result = await apiRequest("/assignments", { method: "POST", body: { ...values, versionId: quiz.versionId, startAt: new Date(values.startAt).toISOString(), dueAt: new Date(values.dueAt).toISOString(), maxAttempts: Number(values.maxAttempts), showAnswers: values.showAnswers === "on", status } });
+        const result = await apiRequest("/assignments", { method: "POST", body: { ...values, versionId: quiz.versionId, startAt: new Date(values.startAt).toISOString(), dueAt: new Date(values.dueAt).toISOString(), maxAttempts: Number(values.maxAttempts), showAnswers: values.showAnswers === "on", shuffleQuestions: values.shuffleQuestions === "on", status } });
         await reloadAssignments(); navigate(`assignments/${result.id}`); notify("Đã lưu bài giao trên máy chủ.");
       } catch (err) { setError(err.message); }
       finally { setBusy(false); }
@@ -87,6 +87,7 @@ export default function AssignmentsPage({ segments = [] }) {
       dueAt: new Date(values.dueAt).toISOString(),
       maxAttempts: Number(values.maxAttempts),
       showAnswers: values.showAnswers === "on",
+      shuffleQuestions: values.shuffleQuestions === "on",
       status,
       questions: structuredClone(quiz.questions),
     };
@@ -233,6 +234,10 @@ export default function AssignmentsPage({ segments = [] }) {
             Cho phép xem đáp án và giải thích sau khi nộp
           </label>
           <label className="ws-check-line">
+            <input type="checkbox" name="shuffleQuestions" defaultChecked />
+            Xáo trộn thứ tự câu hỏi cho từng học sinh
+          </label>
+          <label className="ws-check-line">
             <input type="checkbox" required={status === "PUBLISHED"} />
             Tôi đã kiểm duyệt nội dung Quiz trước khi giao cho lớp.
           </label>
@@ -367,6 +372,8 @@ export default function AssignmentsPage({ segments = [] }) {
               <dd>
                 {assignment.showAnswers ? "Sau khi nộp bài" : "Không công bố"}
               </dd>
+              <dt>Thứ tự câu hỏi</dt>
+              <dd>{assignment.shuffleQuestions ? "Xáo trộn riêng cho từng học sinh" : "Giữ nguyên thứ tự Quiz"}</dd>
             </dl>
             {teacherActions}
             {!isTeacher && (
