@@ -40,16 +40,9 @@ test("personal upload survives reload and original download, then disappears aft
   await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "Bài học.pdf", mimeType: "application/pdf", buffer: Buffer.from(pdf) });
   await page.getByRole("button", { name: "Tải tài liệu lên", exact: true }).click();
-  const downloads = [];
-  page.on("download", (item) => downloads.push(item));
-  const popupEvent = page.waitForEvent("popup");
   await page.getByRole("row", { name: "Xem tài liệu Bài học.pdf", exact: true }).locator("td").nth(1).click();
-  const popup = await popupEvent;
-  popup.on("download", (item) => downloads.push(item));
-  await expect(popup).toHaveURL(/^blob:/);
-  expect(downloads).toHaveLength(0);
-  await expect(page).toHaveURL(/#\/documents$/);
-  await popup.close();
+  await expect(page).toHaveURL(/#\/documents\/\d+$/);
+  await expect(page.locator("iframe[title='Xem Bài học.pdf']")).toBeVisible();
   const pdfDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Tải xuống Bài học.pdf", exact: true }).click();
   expect((await pdfDownload).suggestedFilename()).toBe("Bài học.pdf");

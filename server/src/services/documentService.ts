@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { extractDocumentText } from "./documentFileService.js";
 import { withTransaction } from "../repositories/withTransaction.js";
@@ -19,7 +19,7 @@ export const publicDocument = (row) => ({
 export class DocumentService implements IDocumentService {
   public readonly storageRoot: string;
 
-  constructor(private readonly options: { database: any; repository: any; storageRoot: string; maxFileSizeMb?: number }) {
+  constructor(private readonly options: { database: any; repository: any; storageRoot: string; legacyStorageRoot?: string; maxFileSizeMb?: number }) {
     this.storageRoot = options.storageRoot;
   }
 
@@ -47,6 +47,10 @@ export class DocumentService implements IDocumentService {
       const name = path.basename(originalName.replaceAll("\\", "/")).replace(/[\x00-\x1f\x7f]/g, "");
       const type = path.extname(name).slice(1).toUpperCase();
       if (!["PDF", "DOCX", "TXT"].includes(type) || name.length > 255) throw httpError(400, "Chỉ nhận PDF, DOCX hoặc TXT có tên tối đa 255 ký tự.");
+      const ownedDocuments = await this.options.repository.findOwned(userId);
+      if (ownedDocuments.rows.some((row) => row.file_name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+        throw httpError(409, "Tên tài liệu này đã tồn tại trong danh sách của bạn.");
+      }
       let text;
       try { text = (await extractDocumentText(file, type)).replaceAll("\u0000", "").trim(); }
       catch { throw httpError(422, "Không đọc được tệp. Kiểm tra định dạng, mật khẩu bảo vệ hoặc mã hóa UTF-8 của tệp TXT."); }
@@ -64,6 +68,13 @@ export class DocumentService implements IDocumentService {
   async download(userId: string, id: string): Promise<unknown> {
       const row = await this.owned(userId, id, true);
       if (path.basename(row.storage_path) !== row.storage_path) throw missing();
+      row.storageRoot = this.options.storageRoot;
+      if (this.options.legacyStorageRoot && this.options.legacyStorageRoot !== this.options.storageRoot) {
+        await access(path.join(this.options.storageRoot, row.storage_path)).catch(async () => {
+          await access(path.join(this.options.legacyStorageRoot, row.storage_path));
+          row.storageRoot = this.options.legacyStorageRoot;
+        });
+      }
       return row;
   }
 

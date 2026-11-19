@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Brand.jsx";
 import { useWorkspace } from "./WorkspaceContext.jsx";
 import { dateLabel, id } from "./data.js";
@@ -24,10 +24,35 @@ export default function DocumentsPage({ documentId }) {
   const [files, setFiles] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [pdfError, setPdfError] = useState("");
   const fileInput = useRef(null);
   const document = accessibleDocuments.find((item) => item.id === documentId);
   const isOwner = document?.ownerId === ownerId;
   const documentClasses = document ? sharedClasses.filter((cls) => cls.materialIds.includes(document.id)) : [];
+  useEffect(() => {
+    if (documentId) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [documentId]);
+  useEffect(() => {
+    let active = true;
+    let url = "";
+    setPdfUrl("");
+    setPdfError("");
+    if (!documentId || isPreview || document?.type !== "PDF") return () => {};
+    apiRequest(`/documents/${documentId}/download`, { blob: true })
+      .then((blob) => {
+        if (!active) return;
+        url = URL.createObjectURL(blob);
+        setPdfUrl(url);
+      })
+      .catch((loadError) => {
+        if (active) setPdfError(loadError.message);
+      });
+    return () => {
+      active = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [documentId, document?.type, isPreview]);
   function deleteDocument(item) {
     if (item.ownerId !== ownerId) return;
     if (isPreview && data.classes.some((cls) => cls.materialIds.includes(item.id))) {
@@ -117,7 +142,13 @@ export default function DocumentsPage({ documentId }) {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { notify(error.message); }
   }
-  const viewDocument = (item) => openDocument(item, { isPreview, navigate, notify });
+  const viewDocument = (item) => {
+    if (!isPreview && item.type === "PDF") {
+      navigate(`documents/${item.id}`);
+      return;
+    }
+    openDocument(item, { isPreview, navigate, notify });
+  };
   if (documentsLoading) return <PageHeading title="Đang tải tài liệu…" />;
   if (documentsError) return <Empty title="Không tải được tài liệu" text={documentsError} action={<Button onClick={reloadDocuments}>Thử lại</Button>} />;
   if (documentId)
@@ -136,7 +167,12 @@ export default function DocumentsPage({ documentId }) {
           action={
             <>
               {!isPreview && document.type === "PDF" && (
-                <Button variant="secondary" icon="eye" onClick={() => viewDocument(document)}>
+                <Button
+                  variant="secondary"
+                  icon="eye"
+                  disabled={!pdfUrl}
+                  onClick={() => openDocument(document, { isPreview, navigate, notify, url: pdfUrl })}
+                >
                   Xem PDF trong tab mới
                 </Button>
               )}
@@ -163,7 +199,15 @@ export default function DocumentsPage({ documentId }) {
               <Badge tone="gray">VĂN BẢN XEM TRƯỚC</Badge>
               <Icon name="file" />
             </div>
-            <pre>{document.text || "Không tìm thấy văn bản trong tài liệu. Nếu đây là PDF dạng ảnh, hãy dùng bản PDF có văn bản hoặc chuyển sang DOCX/TXT."}</pre>
+            {document.type === "PDF" && !isPreview ? (
+              pdfUrl ? (
+                <iframe className="ws-document-frame" src={pdfUrl} title={`Xem ${document.name}`} />
+              ) : (
+                <p className="ws-inline-error">{pdfError || "Đang tải bản xem PDF…"}</p>
+              )
+            ) : (
+              <pre>{document.text || "Không tìm thấy văn bản trong tài liệu. Nếu đây là PDF dạng ảnh, hãy dùng bản PDF có văn bản hoặc chuyển sang DOCX/TXT."}</pre>
+            )}
           </article>
           <aside className="ws-panel">
             <h2>Thông tin tài liệu</h2>

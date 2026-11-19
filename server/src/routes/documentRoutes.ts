@@ -15,7 +15,12 @@ import { fileURLToPath } from "node:url";
 import type { IAuthRepository, IDocumentRepository } from "../interfaces/repositoryInterfaces.js";
 import type { Pool } from "pg";
 
-const defaultRoot = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)), env.uploadDir);
+const routeDirectory = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.basename(path.resolve(routeDirectory, "../..")) === "dist"
+	? path.resolve(routeDirectory, "../../../..")
+	: path.resolve(routeDirectory, "../../../");
+const defaultRoot = path.resolve(projectRoot, env.uploadDir);
+const legacyRoot = path.resolve(projectRoot, "server", env.uploadDir);
 
 export interface DocumentRouterDependencies {
 	database?: Pool;
@@ -26,7 +31,7 @@ export interface DocumentRouterDependencies {
 
 export function createDocumentRouter({ database = pool, authRepository = createAuthRepository(), documentRepository, storageRoot = defaultRoot }: DocumentRouterDependencies = {}) {
 	const router = Router();
-	const service = createDocumentService({ database, repository: documentRepository ?? createDocumentRepository(database), storageRoot, maxFileSizeMb: env.maxFileSizeMb });
+	const service = createDocumentService({ database, repository: documentRepository ?? createDocumentRepository(database), storageRoot, legacyStorageRoot: legacyRoot, maxFileSizeMb: env.maxFileSizeMb });
 	const controller = createDocumentController({ documentService: service });
 	const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: env.maxFileSizeMb * 1024 * 1024, files: 1, fields: 0 } }).single("file");
 	router.use(requireAuth(createAuthService(authRepository)));
